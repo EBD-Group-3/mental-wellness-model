@@ -1,0 +1,42 @@
+# Mental Wellness Model Configuration
+
+# Model Configuration
+model:
+  type: "random_forest"  # Options: "random_forest", "logistic_regression"
+  test_size: 0.2
+  random_state: 42
+
+# Data Configuration
+data:
+  sample_size: 1000
+  target_columns:
+    - "depression_risk"
+    - "anxiety_risk"
+  
+  feature_columns:
+    - "age"
+    - "sleep_hours"
+    - "exercise_frequency"
+    - "social_interaction_score"
+    - "work_stress_level"
+    - "financial_stress"
+    - "mood_rating"
+    - "energy_level"
+    - "concentration_difficulty"
+
+# Feature Engineering Configuration
+features:
+  scaling: true
+  create_interactions: true
+  age_groups: [25, 35, 50, 65]
+
+# Risk Assessment Thresholds
+risk_thresholds:
+  low: 0.3
+  moderate: 0.6
+  high: 0.8
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
