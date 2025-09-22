@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  mental-wellness-cli:
+    build: .
+    container_name: mental-wellness-model
+    volumes:
+      # Mount local data directory to container
+      - ./data:/app/data
+      # Mount local models directory to persist trained models
+      - ./models:/app/models
+      # Mount local output directory for results
+      - ./output:/app/output
+      # Mount config directory
+      - ./mental_wellness_model/config:/app/mental_wellness_model/config
+    environment:
+      - PYTHONPATH=/app
+    # Override the default CMD - this allows you to run different commands
+    # Example usage:
+    # docker-compose run mental-wellness-cli python cli.py train
+    # docker-compose run mental-wellness-cli python cli.py predict --model /app/models/model.pkl --age 25
+    stdin_open: true
+    tty: true
+    # Uncomment the following line to run a specific command by default
+    # command: ["python", "cli.py", "--help"]
+
+  # Alternative service for interactive development
+  mental-wellness-dev:
+    build: .
+    container_name: mental-wellness-dev
+    volumes:
+      # Mount the entire project for development
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+    command: ["tail", "-f", "/dev/null"]  # Keep container running
+    stdin_open: true
+    tty: true
+
+# Create named volumes for persistent data storage (optional)
+volumes:
+  models_data:
+    driver: local
+  training_data:
+    driver: local
+  output_data:
+    driver: local
