@@ -1,6 +1,48 @@
 version: '3.8'
 
 services:
+  # FastAPI service with Gunicorn
+  mental-wellness-api:
+    build: .
+    container_name: mental-wellness-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount local data directory to container
+      - ./data:/app/data
+      # Mount local models directory to persist trained models
+      - ./models:/app/models
+      # Mount local output directory for results
+      - ./output:/app/output
+      # Mount config directory
+      - ./mental_wellness_model/config:/app/mental_wellness_model/config
+    environment:
+      - PYTHONPATH=/app
+      - GUNICORN_RELOAD=false  # Set to true for development
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Development API service (with auto-reload)
+  mental-wellness-api-dev:
+    build: .
+    container_name: mental-wellness-api-dev
+    ports:
+      - "8001:8000"
+    volumes:
+      # Mount the entire project for development
+      - .:/app
+    environment:
+      - PYTHONPATH=/app
+      - GUNICORN_RELOAD=true
+    command: ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    restart: unless-stopped
+
+  # CLI service (original functionality)
   mental-wellness-cli:
     build: .
     container_name: mental-wellness-model
@@ -18,11 +60,10 @@ services:
     # Override the default CMD - this allows you to run different commands
     # Example usage:
     # docker-compose run mental-wellness-cli python cli.py train
-    # docker-compose run mental-wellness-cli python cli.py predict --model /app/models/model.pkl --age 25
+    # docker-compose run mental-wellness-cli python cli.py predict --model /app/models/model.joblib --age 25
     stdin_open: true
     tty: true
-    # Uncomment the following line to run a specific command by default
-    # command: ["python", "cli.py", "--help"]
+    command: ["python", "cli.py", "--help"]
 
   # Alternative service for interactive development
   mental-wellness-dev:

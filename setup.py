@@ -1,14 +1,14 @@
 from setuptools import setup, find_packages
 
-with open("README.md", "r", encoding="utf-8") as fh:
-    long_description = fh.read()
+#with open("README.md", "r", encoding="utf-8") as fh:
+ #   long_description = fh.read()
 
 setup(
     name="mental-wellness-model",
     version="0.1.0",
     author="EBD-Group-3",
     description="Big Data Engineering for Mental Wellness Prediction",
-    long_description=long_description,
+    long_description="Mental Wellness Prediction Model Package",
     long_description_content_type="text/markdown",
     packages=find_packages(),
     classifiers=[
