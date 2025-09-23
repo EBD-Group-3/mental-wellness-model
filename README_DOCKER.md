@@ -1034,12 +1034,4 @@ ANXIETY MODEL RESULTS:
   CV Mean Accuracy: 0.819 (+/- 0.031)
 ```
 
-## 📝 Next Steps
-
-1. **Prepare Your Data**: Format your data according to the expected schema
-2. **Train Your Model**: Use your real data to train a production model
-3. **Validate Performance**: Test the model with known cases
-4. **Deploy**: Use the trained model for new predictions
-5. **Monitor**: Track prediction accuracy over time
-
 For more detailed information about the model architecture and features, see the main [README.md](./README.md) file.
