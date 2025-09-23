@@ -68,13 +68,12 @@ def main():
             'features': {
                 'age': 25,
                 'sleep_hours': 8,
-                'exercise_frequency': 5,
-                'social_interaction_score': 8,
+                'exercise_minutes': 150,
+                'avg_heart_rate': 8,
                 'work_stress_level': 3,
-                'financial_stress': 2,
-                'mood_rating': 8,
-                'energy_level': 8,
-                'concentration_difficulty': 2
+                'mood_score': 8,
+                'fitness_level': 8,
+                'resting_heart_rate': 60
             }
         },
         {
@@ -82,13 +81,12 @@ def main():
             'features': {
                 'age': 45,
                 'sleep_hours': 4,
-                'exercise_frequency': 1,
-                'social_interaction_score': 3,
+                'exercise_minutes': 30,
+                'avg_heart_rate': 3,
                 'work_stress_level': 9,
-                'financial_stress': 8,
-                'mood_rating': 3,
-                'energy_level': 2,
-                'concentration_difficulty': 8
+                'mood_score': 3,
+                'fitness_level': 2,
+                'resting_heart_rate': 80
             }
         }
     ]

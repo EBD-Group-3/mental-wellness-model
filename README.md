@@ -102,7 +102,7 @@ results = predictor.train(df)
 individual_features = {
     'age': 30,
     'sleep_hours': 7,
-    'exercise_frequency': 3,
+    'exercise_minutes': 90,
     'mood_rating': 5,
     # ... other features
 }

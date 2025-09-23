@@ -90,13 +90,12 @@ class TestMentalWellnessPredictor(unittest.TestCase):
         features = {
             'age': 30,
             'sleep_hours': 7,
-            'exercise_frequency': 3,
-            'social_interaction_score': 5,
+            'exercise_minutes': 90,
+            'avg_heart_rate': 5,
             'work_stress_level': 5,
-            'financial_stress': 5,
-            'mood_rating': 6,
-            'energy_level': 6,
-            'concentration_difficulty': 4
+            'mood_score': 6,
+            'fitness_level': 6,
+            'resting_heart_rate': 65
         }
         
         results = self.predictor.predict_individual(features)
