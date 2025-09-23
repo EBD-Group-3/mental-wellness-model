@@ -16,13 +16,12 @@ data:
   feature_columns:
     - "age"
     - "sleep_hours"
-    - "exercise_frequency"
-    - "social_interaction_score"
+    - "exercise_minutes"
+    - "avg_heart_rate"
     - "work_stress_level"
-    - "financial_stress"
-    - "mood_rating"
-    - "energy_level"
-    - "concentration_difficulty"
+    - "mood_score"
+    - "fitness_level"
+    - "resting_heart_rate"
 
 # Feature Engineering Configuration
 features:

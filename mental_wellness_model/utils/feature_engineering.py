@@ -39,19 +39,17 @@ class FeatureEngineer:
             featured_df['sleep_excess'] = np.maximum(0, featured_df['sleep_hours'] - 9)
             featured_df['sleep_quality_score'] = self._calculate_sleep_quality(featured_df['sleep_hours'])
         
-        # Stress compound features
-        if all(col in df.columns for col in ['work_stress_level', 'financial_stress']):
-            featured_df['total_stress_score'] = (
-                featured_df['work_stress_level'] + featured_df['financial_stress']
-            ) / 2
+        # Work stress features (simplified since financial_stress removed)
+        if 'work_stress_level' in df.columns:
+            featured_df['work_stress_normalized'] = featured_df['work_stress_level'] / 10.0
         
-        # Mood and energy interaction
-        if all(col in df.columns for col in ['mood_rating', 'energy_level']):
-            featured_df['mood_energy_interaction'] = (
-                featured_df['mood_rating'] * featured_df['energy_level']
+        # Mood and fitness interaction
+        if all(col in df.columns for col in ['mood_score', 'fitness_level']):
+            featured_df['mood_fitness_interaction'] = (
+                featured_df['mood_score'] * featured_df['fitness_level']
             )
-            featured_df['mood_energy_ratio'] = (
-                featured_df['mood_rating'] / (featured_df['energy_level'] + 0.1)
+            featured_df['mood_fitness_ratio'] = (
+                featured_df['mood_score'] / (featured_df['fitness_level'] + 0.1)
             )
         
         # Age-based features
@@ -66,18 +64,17 @@ class FeatureEngineer:
             featured_df = pd.concat([featured_df, age_dummies], axis=1)
             featured_df.drop('age_group', axis=1, inplace=True)
         
-        # Social and lifestyle balance
-        if all(col in df.columns for col in ['social_interaction_score', 'exercise_frequency']):
-            featured_df['lifestyle_balance_score'] = (
-                featured_df['social_interaction_score'] + 
-                featured_df['exercise_frequency']
+        # Health and fitness balance (heart rate + exercise)
+        if all(col in df.columns for col in ['avg_heart_rate', 'exercise_minutes']):
+            featured_df['cardio_fitness_score'] = (
+                (100 - featured_df['avg_heart_rate']) / 50 * 10 +  # normalize heart rate (lower is better)
+                featured_df['exercise_minutes'] / 30  # normalize exercise minutes (per session equivalent)
             ) / 2
         
         # Risk indicators
-        if 'concentration_difficulty' in df.columns:
-            featured_df['cognitive_impairment_flag'] = (
-                featured_df['concentration_difficulty'] > 7
-            ).astype(int)
+        if 'resting_heart_rate' in df.columns:
+            # Create cardiovascular risk indicator (higher resting HR = higher risk)
+            featured_df['cardio_risk_score'] = ((featured_df['resting_heart_rate'] - 60) / 30).clip(0, 1)
         
         self.feature_names = [col for col in featured_df.columns 
                              if col not in ['depression_risk', 'anxiety_risk']]

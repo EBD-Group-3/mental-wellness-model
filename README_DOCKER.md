@@ -68,13 +68,12 @@ curl -X POST "http://localhost:8000/predict" \
      -d '{
        "age": 28,
        "sleep_hours": 6.5,
-       "exercise_frequency": 3,
-       "social_interaction_score": 7,
+       "exercise_minutes": 90,
+       "avg_heart_rate": 7,
        "work_stress_level": 8,
-       "financial_stress": 6,
-       "mood_rating": 5,
-       "energy_level": 4,
-       "concentration_difficulty": 7
+       "mood_score": 5,
+       "fitness_level": 4,
+       "resting_heart_rate": 65
      }'
 ```
 
@@ -87,24 +86,22 @@ curl -X POST "http://localhost:8000/predict/batch" \
          {
            "age": 28,
            "sleep_hours": 6.5,
-           "exercise_frequency": 3,
-           "social_interaction_score": 7,
+           "exercise_minutes": 90,
+           "avg_heart_rate": 7,
            "work_stress_level": 8,
-           "financial_stress": 6,
-           "mood_rating": 5,
-           "energy_level": 4,
-           "concentration_difficulty": 7
+           "mood_score": 5,
+           "fitness_level": 4,
+           "resting_heart_rate": 65
          },
          {
            "age": 35,
            "sleep_hours": 4.5,
-           "exercise_frequency": 0,
-           "social_interaction_score": 2,
+           "exercise_minutes": 0,
+           "avg_heart_rate": 2,
            "work_stress_level": 9,
-           "financial_stress": 8,
-           "mood_rating": 3,
-           "energy_level": 2,
-           "concentration_difficulty": 9
+           "mood_score": 3,
+           "fitness_level": 2,
+           "resting_heart_rate": 75
          }
        ],
        "include_metadata": true
@@ -225,10 +222,9 @@ docker-compose run mental-wellness-cli python cli.py predict \
     --exercise-frequency 3 \
     --social-interaction-score 7 \
     --work-stress-level 8 \
-    --financial-stress 6 \
-    --mood-rating 5 \
-    --energy-level 4 \
-    --concentration-difficulty 7
+    --mood-score 5 \
+    --fitness-level 4 \
+    --smoking-status 0
 ```
 
 ### High-Risk Individual Example
@@ -241,10 +237,9 @@ docker-compose run mental-wellness-cli python cli.py predict \
     --exercise-frequency 0 \
     --social-interaction-score 2 \
     --work-stress-level 9 \
-    --financial-stress 8 \
-    --mood-rating 3 \
-    --energy-level 2 \
-    --concentration-difficulty 9
+    --mood-score 3 \
+    --fitness-level 2 \
+    --smoking-status 1
 ```
 
 ### Low-Risk Individual Example
@@ -257,10 +252,9 @@ docker-compose run mental-wellness-cli python cli.py predict \
     --exercise-frequency 5 \
     --social-interaction-score 9 \
     --work-stress-level 3 \
-    --financial-stress 2 \
-    --mood-rating 8 \
-    --energy-level 9 \
-    --concentration-difficulty 2
+    --mood-score 8 \
+    --fitness-level 9 \
+    --smoking-status 0
 ```
 
 ### JSON-Based Predictions
@@ -272,13 +266,12 @@ Create a file `./data/individual.json`:
 {
   "age": 28,
   "sleep_hours": 6.5,
-  "exercise_frequency": 3,
-  "social_interaction_score": 7,
+  "exercise_minutes": 90,
+  "avg_heart_rate": 7,
   "work_stress_level": 8,
-  "financial_stress": 6,
-  "mood_rating": 5,
-  "energy_level": 4,
-  "concentration_difficulty": 7
+  "mood_score": 5,
+  "fitness_level": 4,
+  "resting_heart_rate": 65
 }
 ```
 
@@ -290,37 +283,34 @@ Create a file `./data/batch_predictions.json`:
     "id": "patient_001",
     "age": 28,
     "sleep_hours": 6.5,
-    "exercise_frequency": 3,
-    "social_interaction_score": 7,
+    "exercise_minutes": 90,
+    "avg_heart_rate": 7,
     "work_stress_level": 8,
-    "financial_stress": 6,
-    "mood_rating": 5,
-    "energy_level": 4,
-    "concentration_difficulty": 7
+    "mood_score": 5,
+    "fitness_level": 4,
+    "resting_heart_rate": 65
   },
   {
     "id": "patient_002",
     "age": 35,
     "sleep_hours": 4.5,
-    "exercise_frequency": 0,
-    "social_interaction_score": 2,
+    "exercise_minutes": 0,
+    "avg_heart_rate": 2,
     "work_stress_level": 9,
-    "financial_stress": 8,
-    "mood_rating": 3,
-    "energy_level": 2,
-    "concentration_difficulty": 9
+    "mood_score": 3,
+    "fitness_level": 2,
+    "resting_heart_rate": 75
   },
   {
     "id": "patient_003",
     "age": 25,
     "sleep_hours": 8,
-    "exercise_frequency": 5,
-    "social_interaction_score": 9,
+    "exercise_minutes": 150,
+    "avg_heart_rate": 9,
     "work_stress_level": 3,
-    "financial_stress": 2,
-    "mood_rating": 8,
-    "energy_level": 9,
-    "concentration_difficulty": 2
+    "mood_score": 8,
+    "fitness_level": 9,
+    "resting_heart_rate": 65
   }
 ]
 ```
@@ -489,10 +479,10 @@ curl -X POST "http://localhost:8000/train" \
 # Step 3: Test with a prediction
 curl -X POST "http://localhost:8000/predict" \
      -H "Content-Type: application/json" \
-     -d '{"age": 30, "sleep_hours": 7, "exercise_frequency": 4, 
-          "social_interaction_score": 6, "work_stress_level": 5,
-          "financial_stress": 4, "mood_rating": 7, "energy_level": 6,
-          "concentration_difficulty": 3}'
+     -d '{"age": 30, "sleep_hours": 7, "exercise_minutes": 120, 
+          "avg_heart_rate": 6, "work_stress_level": 5,
+          "mood_score": 7, "fitness_level": 6,
+          "resting_heart_rate": 65}'
 
 # Step 4: Check API health
 curl http://localhost:8000/health
@@ -558,13 +548,12 @@ docker-compose run mental-wellness-cli python tests.py
 Your CSV training data should include these columns:
 - `age`: Age of the individual (numeric)
 - `sleep_hours`: Hours of sleep per night (numeric)
-- `exercise_frequency`: Exercise sessions per week (numeric)
-- `social_interaction_score`: Social interaction rating 1-10 (numeric)
+- `exercise_minutes`: Exercise minutes per week (numeric)
+- `avg_heart_rate`: Average heart rate measurement 1-10 (numeric)
 - `work_stress_level`: Work stress level 1-10 (numeric)
-- `financial_stress`: Financial stress level 1-10 (numeric)
-- `mood_rating`: Mood rating 1-10 (numeric)
-- `energy_level`: Energy level 1-10 (numeric)
-- `concentration_difficulty`: Concentration difficulty 1-10 (numeric)
+- `mood_score`: Mood score 1-10 (numeric)
+- `fitness_level`: Fitness level 1-10 (numeric)
+- `resting_heart_rate`: Resting heart rate (beats per minute) (numeric)
 
 #### JSON Format (for prediction data)
 For structured prediction input, use JSON format with the same field names:
@@ -574,13 +563,12 @@ For structured prediction input, use JSON format with the same field names:
 {
   "age": 30,
   "sleep_hours": 7.5,
-  "exercise_frequency": 3,
-  "social_interaction_score": 6,
+  "exercise_minutes": 90,
+  "avg_heart_rate": 6,
   "work_stress_level": 5,
-  "financial_stress": 4,
-  "mood_rating": 7,
-  "energy_level": 6,
-  "concentration_difficulty": 3
+  "mood_score": 7,
+  "fitness_level": 6,
+  "resting_heart_rate": 65
 }
 ```
 
@@ -591,13 +579,12 @@ For structured prediction input, use JSON format with the same field names:
     "id": "unique_identifier",
     "age": 30,
     "sleep_hours": 7.5,
-    "exercise_frequency": 3,
-    "social_interaction_score": 6,
+    "exercise_minutes": 90,
+    "avg_heart_rate": 6,
     "work_stress_level": 5,
-    "financial_stress": 4,
-    "mood_rating": 7,
-    "energy_level": 6,
-    "concentration_difficulty": 3
+    "mood_score": 7,
+    "fitness_level": 6,
+    "resting_heart_rate": 65
   }
 ]
 ```
@@ -624,7 +611,234 @@ For structured prediction input, use JSON format with the same field names:
 └── model_metrics.json       # Performance metrics
 ```
 
-## 🔧 Configuration Examples
+## 🔧 Model Management
+
+The application now includes advanced model management features for production environments:
+
+### Model Storage and Persistence
+- Models are saved in the `/app/models` directory inside the container
+- This directory is mounted as a Docker volume for persistence across container restarts
+- Models are organized with versioning, metadata, and automated backup
+
+### Model Versioning System
+Each model has:
+- **Name**: Descriptive identifier (e.g., `api_trained_random_forest_20241201_142345`)
+- **Version**: Semantic versioning (e.g., `1.0.0`)
+- **Metadata**: Training info, performance metrics, creation timestamp
+- **Production Status**: Automatic promotion system
+
+### Model Management API Endpoints
+
+#### List All Available Models
+Get an overview of all trained models:
+```bash
+curl -X GET http://localhost:8000/models
+```
+
+Example response:
+```json
+{
+  "available_models": {
+    "api_trained_random_forest_20241201_142345_1.0.0": {
+      "model_path": "/app/models/api_trained_random_forest_20241201_142345_1.0.0.joblib",
+      "metadata_path": "/app/models/api_trained_random_forest_20241201_142345_1.0.0.json",
+      "created_at": "2024-12-01T14:23:45.123456",
+      "is_production": true,
+      "performance_metrics": {
+        "depression": {"test_accuracy": 0.845, "auc_score": 0.892},
+        "anxiety": {"test_accuracy": 0.823, "auc_score": 0.876}
+      }
+    },
+    "experimental_model_20241201_120000_1.0.0": {
+      "model_path": "/app/models/experimental_model_20241201_120000_1.0.0.joblib",
+      "metadata_path": "/app/models/experimental_model_20241201_120000_1.0.0.json",
+      "created_at": "2024-12-01T12:00:00.000000",
+      "is_production": false
+    }
+  },
+  "production_model": "api_trained_random_forest_20241201_142345_1.0.0",
+  "model_directory": "/app/models"
+}
+```
+
+#### Get Current Model Information
+Check details about the currently loaded model:
+```bash
+curl -X GET http://localhost:8000/model/info
+```
+
+Example response:
+```json
+{
+  "model_metadata": {
+    "model_path": "/app/models/api_trained_random_forest_20241201_142345_1.0.0.joblib",
+    "trained_at": "2024-12-01T14:23:45.123456",
+    "model_type": "random_forest",
+    "training_samples": 2000,
+    "features": ["age", "sleep_hours", "exercise_minutes", ...],
+    "performance_metrics": {
+      "training_accuracy": 0.92,
+      "depression": {"test_accuracy": 0.845},
+      "anxiety": {"test_accuracy": 0.823}
+    },
+    "version": "1.0.0"
+  },
+  "is_trained": true,
+  "feature_columns": ["age", "sleep_hours", "exercise_minutes", ...],
+  "model_manager_info": {
+    "available_models": {...},
+    "production_model": "api_trained_random_forest_20241201_142345_1.0.0",
+    "model_directory": "/app/models"
+  }
+}
+```
+
+#### Promote Model to Production
+Switch the active production model:
+```bash
+curl -X POST http://localhost:8000/models/experimental_model_20241201_120000/1.0.0/promote
+```
+
+Example response:
+```json
+{
+  "message": "Model experimental_model_20241201_120000 v1.0.0 promoted to production",
+  "production_model_path": "/app/models/experimental_model_20241201_120000_1.0.0.joblib"
+}
+```
+
+### Model Training with Versioning
+When training via API, models are automatically versioned:
+```bash
+curl -X POST "http://localhost:8000/train" \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model_type": "random_forest",
+       "sample_size": 2000,
+       "test_size": 0.2
+     }'
+```
+
+The response includes versioning information:
+```json
+{
+  "message": "Model training completed successfully",
+  "results": {...},
+  "model_metadata": {
+    "model_path": "/app/models/api_trained_random_forest_20241201_142345_1.0.0.joblib",
+    "trained_at": "2024-12-01T14:23:45.123456",
+    "model_type": "random_forest",
+    "test_size": 0.2,
+    "sample_size": 2000,
+    "version": "1.0.0",
+    "performance_metrics": {
+      "depression": {"test_accuracy": 0.845, "auc_score": 0.892},
+      "anxiety": {"test_accuracy": 0.823, "auc_score": 0.876}
+    }
+  }
+}
+```
+
+### Accessing Models from Host System
+
+Models are persistent and accessible from the host system:
+
+```bash
+# List all models from the host
+ls -la models/
+
+# View model metadata
+cat models/api_trained_random_forest_20241201_142345_1.0.0.json
+
+# Copy a model for backup
+cp models/production_model.joblib /backup/location/
+
+# Load a model in Python outside the container
+python3 -c "
+import joblib
+model = joblib.load('models/api_trained_random_forest_20241201_142345_1.0.0.joblib')
+print('Model loaded successfully:', type(model))
+"
+```
+
+### Model Management Best Practices
+
+1. **Regular Training**: Retrain models with new data periodically
+2. **Version Control**: Always use semantic versioning for model releases
+3. **Performance Monitoring**: Track model performance metrics over time
+4. **Backup Strategy**: Keep backups of production models
+5. **Promotion Testing**: Test models thoroughly before promoting to production
+
+### Model Management Demo Script
+
+We've included a comprehensive demo script that showcases all model management features:
+
+```bash
+# Start the API server first
+docker-compose up -d mental-wellness-api
+
+# Wait a few seconds for the API to start, then run the demo
+docker-compose run mental-wellness-cli python scripts/model_management_demo.py
+```
+
+This demo script will:
+1. ✅ Check API health and connectivity
+2. 🚀 Train multiple models with different algorithms
+3. 📋 List all available models with their metrics
+4. 🧪 Test predictions with different risk profiles
+5. 🏆 Promote the best performing model to production
+6. 📊 Show updated model information and performance
+
+The demo creates models using:
+- Random Forest
+- Logistic Regression  
+- Gradient Boosting
+
+And tests them with:
+- Low risk individual (healthy lifestyle)
+- High risk individual (multiple risk factors)
+- Moderate risk individual (mixed indicators)
+
+Example demo output:
+```
+🤖 Mental Wellness Model Management Demo
+============================================================
+
+🚀 Training Model 1: Random Forest Model
+✅ Random Forest Model trained successfully
+   Model Path: /app/models/api_trained_random_forest_20241201_142345_1.0.0.joblib
+   Training Samples: 1500
+
+🏆 Promoting best performing model: api_trained_gradient_boosting_20241201_143000_1.0.0
+   Average Accuracy: 0.834
+
+🧪 Testing: High Risk Individual
+  Depression: Very High (Probability: 0.891)
+  Anxiety: Very High (Probability: 0.934)
+```
+
+### Example Model Management Workflow
+
+```bash
+# Step 1: Train a new experimental model
+curl -X POST "http://localhost:8000/train" \
+     -H "Content-Type: application/json" \
+     -d '{"model_type": "gradient_boosting", "sample_size": 3000}'
+
+# Step 2: List all models to see the new one
+curl -X GET http://localhost:8000/models
+
+# Step 3: Test the new model with predictions
+curl -X POST "http://localhost:8000/predict" \
+     -H "Content-Type: application/json" \
+     -d '{"age": 30, "sleep_hours": 7, ...}'
+
+# Step 4: If satisfied, promote to production
+curl -X POST http://localhost:8000/models/api_trained_gradient_boosting_20241201_150000/1.0.0/promote
+
+# Step 5: Verify the new production model is active
+curl -X GET http://localhost:8000/model/info
+```
 
 ### Custom Configuration File
 Create a `custom_config.yaml`:
@@ -731,13 +945,12 @@ When using `--output-json`, the results would be saved in structured format:
       "input": {
         "age": 28,
         "sleep_hours": 6.5,
-        "exercise_frequency": 3,
-        "social_interaction_score": 7,
+        "exercise_minutes": 90,
+        "avg_heart_rate": 7,
         "work_stress_level": 8,
-        "financial_stress": 6,
-        "mood_rating": 5,
-        "energy_level": 4,
-        "concentration_difficulty": 7
+        "mood_score": 5,
+        "fitness_level": 4,
+        "resting_heart_rate": 65
       },
       "results": {
         "depression": {

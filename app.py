@@ -24,6 +24,7 @@ import joblib
 
 from mental_wellness_model import MentalWellnessPredictor, DataProcessor, FeatureEngineer
 from mental_wellness_model.config import load_config
+from model_manager import ModelManager
 
 
 # Configure logging
@@ -37,6 +38,7 @@ logger = logging.getLogger(__name__)
 predictor = None
 data_processor = None
 feature_engineer = None
+model_manager = None
 model_metadata = {}
 
 
@@ -45,13 +47,12 @@ class IndividualFeatures(BaseModel):
     """Input features for individual prediction."""
     age: float = Field(..., ge=18, le=100, description="Age of the individual")
     sleep_hours: float = Field(..., ge=0, le=24, description="Hours of sleep per night")
-    exercise_frequency: int = Field(..., ge=0, le=7, description="Exercise sessions per week")
-    social_interaction_score: float = Field(..., ge=1, le=10, description="Social interaction rating (1-10)")
+    exercise_minutes: int = Field(..., ge=0, le=500, description="Exercise minutes per week")
+    avg_heart_rate: float = Field(..., ge=50, le=120, description="Average heart rate (beats per minute)")
     work_stress_level: float = Field(..., ge=1, le=10, description="Work stress level (1-10)")
-    financial_stress: float = Field(..., ge=1, le=10, description="Financial stress level (1-10)")
-    mood_rating: float = Field(..., ge=1, le=10, description="Mood rating (1-10)")
-    energy_level: float = Field(..., ge=1, le=10, description="Energy level (1-10)")
-    concentration_difficulty: float = Field(..., ge=1, le=10, description="Concentration difficulty (1-10)")
+    mood_score: float = Field(..., ge=1, le=10, description="Mood score (1-10)")
+    fitness_level: float = Field(..., ge=1, le=10, description="Fitness level (1-10)")
+    resting_heart_rate: float = Field(..., ge=40, le=100, description="Resting heart rate (beats per minute)")
 
 
 class BatchPredictionRequest(BaseModel):
@@ -129,27 +130,36 @@ app.add_middleware(
 
 async def load_default_model():
     """Load default model if available."""
-    global predictor, data_processor, feature_engineer, model_metadata
+    global predictor, data_processor, feature_engineer, model_manager, model_metadata
     
     try:
         # Initialize components
         data_processor = DataProcessor()
         feature_engineer = FeatureEngineer()
+        model_manager = ModelManager()
         
-        # Try to load existing model
-        model_path = "/app/models/production_model.joblib"
-        if os.path.exists(model_path):
+        # Try to load existing production model
+        production_model_path = model_manager.get_production_model_path()
+        if production_model_path and os.path.exists(production_model_path):
             predictor = MentalWellnessPredictor()
-            predictor.load_model(model_path)
-            model_metadata = {
-                "model_path": model_path,
-                "loaded_at": datetime.now().isoformat(),
-                "model_type": predictor.model_type,
-                "version": "1.0.0"
-            }
-            logger.info(f"Loaded model from {model_path}")
+            predictor.load_model(production_model_path)
+            model_metadata = model_manager.get_model_info(model_manager.metadata["current_production"])
+            logger.info(f"Loaded production model: {production_model_path}")
         else:
-            logger.info("No pre-trained model found. Use /train endpoint to train a model.")
+            # Try to load any available model
+            fallback_path = "/app/models/production_model.joblib"
+            if os.path.exists(fallback_path):
+                predictor = MentalWellnessPredictor()
+                predictor.load_model(fallback_path)
+                model_metadata = {
+                    "model_path": fallback_path,
+                    "loaded_at": datetime.now().isoformat(),
+                    "model_type": predictor.model_type,
+                    "version": "1.0.0"
+                }
+                logger.info(f"Loaded fallback model from {fallback_path}")
+            else:
+                logger.info("No pre-trained model found. Use /train endpoint to train a model.")
             
     except Exception as e:
         logger.error(f"Error during model loading: {e}")
@@ -225,20 +235,29 @@ async def train_model(
         # Train model
         results = predictor.train(df, test_size=request.test_size)
         
-        # Save model
-        model_path = "/app/models/api_trained_model.joblib"
-        os.makedirs(os.path.dirname(model_path), exist_ok=True)
-        predictor.save_model(model_path)
+        # Save model using ModelManager
+        model_name = f"api_trained_{request.model_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+        version = "1.0.0"
+        
+        # Save the model and get the path
+        model_info = model_manager.save_model(
+            model=predictor.model,
+            model_name=model_name,
+            version=version,
+            metadata={
+                "trained_at": datetime.now().isoformat(),
+                "model_type": request.model_type,
+                "test_size": request.test_size,
+                "sample_size": request.sample_size,
+                "performance_metrics": results
+            }
+        )
+        
+        # Promote to production
+        model_manager.promote_to_production(model_name, version)
         
         # Update metadata
-        model_metadata = {
-            "model_path": model_path,
-            "trained_at": datetime.now().isoformat(),
-            "model_type": request.model_type,
-            "test_size": request.test_size,
-            "sample_size": request.sample_size,
-            "version": "1.0.0"
-        }
+        model_metadata = model_info
         
         return {
             "message": "Model training completed successfully",
@@ -327,10 +346,23 @@ async def get_model_info():
     if not model_metadata:
         raise HTTPException(status_code=404, detail="No model loaded")
     
+    # Get additional model manager info if available
+    model_manager_info = {}
+    if model_manager:
+        try:
+            model_manager_info = {
+                "available_models": model_manager.list_models(),
+                "production_model": model_manager.metadata.get("current_production"),
+                "model_directory": model_manager.models_dir
+            }
+        except Exception as e:
+            logger.warning(f"Could not get model manager info: {e}")
+    
     return {
         "model_metadata": model_metadata,
         "is_trained": predictor is not None and predictor.is_trained,
-        "feature_columns": predictor.feature_columns if predictor else []
+        "feature_columns": predictor.feature_columns if predictor else [],
+        "model_manager_info": model_manager_info
     }
 
 
@@ -343,6 +375,52 @@ async def unload_model():
     model_metadata = {}
     
     return {"message": "Model unloaded successfully"}
+
+
+@app.get("/models")
+async def list_models():
+    """List all available models."""
+    if not model_manager:
+        raise HTTPException(status_code=500, detail="Model manager not available")
+    
+    try:
+        models = model_manager.list_models()
+        return {
+            "available_models": models,
+            "production_model": model_manager.metadata.get("current_production"),
+            "model_directory": model_manager.models_dir
+        }
+    except Exception as e:
+        logger.error(f"Error listing models: {e}")
+        raise HTTPException(status_code=500, detail=f"Error listing models: {str(e)}")
+
+
+@app.post("/models/{model_name}/{version}/promote")
+async def promote_model(model_name: str, version: str):
+    """Promote a specific model version to production."""
+    global predictor, model_metadata
+    
+    if not model_manager:
+        raise HTTPException(status_code=500, detail="Model manager not available")
+    
+    try:
+        # Promote model
+        model_manager.promote_to_production(model_name, version)
+        
+        # Load the newly promoted model
+        production_model_path = model_manager.get_production_model_path()
+        if production_model_path and os.path.exists(production_model_path):
+            predictor = MentalWellnessPredictor()
+            predictor.load_model(production_model_path)
+            model_metadata = model_manager.get_model_info(f"{model_name}_{version}")
+            
+        return {
+            "message": f"Model {model_name} v{version} promoted to production",
+            "production_model_path": production_model_path
+        }
+    except Exception as e:
+        logger.error(f"Error promoting model: {e}")
+        raise HTTPException(status_code=500, detail=f"Error promoting model: {str(e)}")
 
 
 # Error handlers
@@ -360,11 +438,15 @@ async def http_exception_handler(request, exc):
 
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "app:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    try:
+        import uvicorn
+        uvicorn.run(
+            "app:app",
+            host="0.0.0.0",
+            port=8000,
+            reload=True,
+            log_level="info"
+        )
+    except ImportError:
+        print("uvicorn not installed. Install with: pip install uvicorn")
+        print("Or run with: gunicorn app:app -c gunicorn.conf.py")

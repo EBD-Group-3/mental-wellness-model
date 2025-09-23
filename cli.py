@@ -91,13 +91,12 @@ def predict_individual(args):
     features = {
         'age': args.age,
         'sleep_hours': args.sleep_hours,
-        'exercise_frequency': args.exercise_frequency,
-        'social_interaction_score': args.social_interaction_score,
+        'exercise_minutes': args.exercise_minutes,
+        'avg_heart_rate': args.avg_heart_rate,
         'work_stress_level': args.work_stress_level,
-        'financial_stress': args.financial_stress,
-        'mood_rating': args.mood_rating,
-        'energy_level': args.energy_level,
-        'concentration_difficulty': args.concentration_difficulty,
+        'mood_score': args.mood_score,
+        'fitness_level': args.fitness_level,
+        'resting_heart_rate': args.resting_heart_rate,
     }
     
     # Make prediction
@@ -129,13 +128,12 @@ def main():
     predict_parser.add_argument('--model', '-m', required=True, help='Path to trained model file')
     predict_parser.add_argument('--age', type=float, default=30, help='Age')
     predict_parser.add_argument('--sleep-hours', type=float, default=7, help='Hours of sleep per night')
-    predict_parser.add_argument('--exercise-frequency', type=int, default=3, help='Exercise frequency per week')
-    predict_parser.add_argument('--social-interaction-score', type=float, default=5, help='Social interaction score (1-10)')
+    predict_parser.add_argument('--exercise-minutes', type=int, default=90, help='Exercise minutes per week')
+    predict_parser.add_argument('--avg-heart-rate', type=float, default=70, help='Average heart rate (beats per minute)')
     predict_parser.add_argument('--work-stress-level', type=float, default=5, help='Work stress level (1-10)')
-    predict_parser.add_argument('--financial-stress', type=float, default=5, help='Financial stress level (1-10)')
-    predict_parser.add_argument('--mood-rating', type=float, default=6, help='Mood rating (1-10)')
-    predict_parser.add_argument('--energy-level', type=float, default=6, help='Energy level (1-10)')
-    predict_parser.add_argument('--concentration-difficulty', type=float, default=4, help='Concentration difficulty (1-10)')
+    predict_parser.add_argument('--mood-score', type=float, default=6, help='Mood score (1-10)')
+    predict_parser.add_argument('--fitness-level', type=float, default=6, help='Fitness level (1-10)')
+    predict_parser.add_argument('--resting-heart-rate', type=float, default=65, help='Resting heart rate (beats per minute)')
     
     args = parser.parse_args()
     
