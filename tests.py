@@ -91,10 +91,10 @@ class TestMentalWellnessPredictor(unittest.TestCase):
             'age': 30,
             'sleep_hours': 7,
             'exercise_minutes': 90,
-            'avg_heart_rate': 5,
             'work_stress_level': 5,
-            'mood_score': 6,
-            'fitness_level': 6,
+            'mood_rating': 6,
+            'energy_level': 6,
+            'avg_heart_rate': 70,
             'resting_heart_rate': 65
         }
         

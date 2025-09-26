@@ -67,12 +67,12 @@ curl -X POST "http://localhost:8000/predict" \
      -H "Content-Type: application/json" \
      -d '{
        "age": 28,
-       "sleep_hours": 6.5,
+       "sleep_hours": 7,
        "exercise_minutes": 90,
-       "avg_heart_rate": 7,
-       "work_stress_level": 8,
-       "mood_score": 5,
-       "fitness_level": 4,
+       "work_stress_level": 5,
+       "mood_rating": 6,
+       "energy_level": 6,
+       "avg_heart_rate": 70,
        "resting_heart_rate": 65
      }'
 ```
@@ -85,22 +85,22 @@ curl -X POST "http://localhost:8000/predict/batch" \
        "individuals": [
          {
            "age": 28,
-           "sleep_hours": 6.5,
+           "sleep_hours": 7,
            "exercise_minutes": 90,
-           "avg_heart_rate": 7,
-           "work_stress_level": 8,
-           "mood_score": 5,
-           "fitness_level": 4,
+           "work_stress_level": 5,
+           "mood_rating": 6,
+           "energy_level": 6,
+           "avg_heart_rate": 70,
            "resting_heart_rate": 65
          },
          {
            "age": 35,
-           "sleep_hours": 4.5,
-           "exercise_minutes": 0,
-           "avg_heart_rate": 2,
-           "work_stress_level": 9,
-           "mood_score": 3,
-           "fitness_level": 2,
+           "sleep_hours": 5,
+           "exercise_minutes": 30,
+           "work_stress_level": 8,
+           "mood_rating": 3,
+           "energy_level": 3,
+           "avg_heart_rate": 85,
            "resting_heart_rate": 75
          }
        ],
@@ -265,13 +265,11 @@ Create a file `./data/individual.json`:
 ```json
 {
   "age": 28,
-  "sleep_hours": 6.5,
-  "exercise_minutes": 90,
-  "avg_heart_rate": 7,
-  "work_stress_level": 8,
-  "mood_score": 5,
-  "fitness_level": 4,
-  "resting_heart_rate": 65
+  "sleep_hours": 7,
+  "exercise_frequency": 3,
+  "work_stress_level": 5,
+  "mood_rating": 6,
+  "energy_level": 6
 }
 ```
 
@@ -282,35 +280,29 @@ Create a file `./data/batch_predictions.json`:
   {
     "id": "patient_001",
     "age": 28,
-    "sleep_hours": 6.5,
-    "exercise_minutes": 90,
-    "avg_heart_rate": 7,
-    "work_stress_level": 8,
-    "mood_score": 5,
-    "fitness_level": 4,
-    "resting_heart_rate": 65
+    "sleep_hours": 7,
+    "exercise_frequency": 3,
+    "work_stress_level": 5,
+    "mood_rating": 6,
+    "energy_level": 6
   },
   {
     "id": "patient_002",
     "age": 35,
-    "sleep_hours": 4.5,
-    "exercise_minutes": 0,
-    "avg_heart_rate": 2,
-    "work_stress_level": 9,
-    "mood_score": 3,
-    "fitness_level": 2,
-    "resting_heart_rate": 75
+    "sleep_hours": 5,
+    "exercise_frequency": 1,
+    "work_stress_level": 8,
+    "mood_rating": 3,
+    "energy_level": 3
   },
   {
     "id": "patient_003",
     "age": 25,
     "sleep_hours": 8,
-    "exercise_minutes": 150,
-    "avg_heart_rate": 9,
+    "exercise_frequency": 4,
     "work_stress_level": 3,
-    "mood_score": 8,
-    "fitness_level": 9,
-    "resting_heart_rate": 65
+    "mood_rating": 8,
+    "energy_level": 8
   }
 ]
 ```
@@ -479,10 +471,9 @@ curl -X POST "http://localhost:8000/train" \
 # Step 3: Test with a prediction
 curl -X POST "http://localhost:8000/predict" \
      -H "Content-Type: application/json" \
-     -d '{"age": 30, "sleep_hours": 7, "exercise_minutes": 120, 
-          "avg_heart_rate": 6, "work_stress_level": 5,
-          "mood_score": 7, "fitness_level": 6,
-          "resting_heart_rate": 65}'
+     -d '{"age": 30, "sleep_hours": 7, "exercise_frequency": 4, 
+          "work_stress_level": 5, "mood_rating": 7, 
+          "energy_level": 7}'
 
 # Step 4: Check API health
 curl http://localhost:8000/health
@@ -548,12 +539,10 @@ docker-compose run mental-wellness-cli python tests.py
 Your CSV training data should include these columns:
 - `age`: Age of the individual (numeric)
 - `sleep_hours`: Hours of sleep per night (numeric)
-- `exercise_minutes`: Exercise minutes per week (numeric)
-- `avg_heart_rate`: Average heart rate measurement 1-10 (numeric)
+- `exercise_frequency`: Exercise frequency per week (numeric)
 - `work_stress_level`: Work stress level 1-10 (numeric)
-- `mood_score`: Mood score 1-10 (numeric)
-- `fitness_level`: Fitness level 1-10 (numeric)
-- `resting_heart_rate`: Resting heart rate (beats per minute) (numeric)
+- `mood_rating`: Mood rating 1-10 (numeric)
+- `energy_level`: Energy level 1-10 (numeric)
 
 #### JSON Format (for prediction data)
 For structured prediction input, use JSON format with the same field names:
@@ -562,13 +551,11 @@ For structured prediction input, use JSON format with the same field names:
 ```json
 {
   "age": 30,
-  "sleep_hours": 7.5,
-  "exercise_minutes": 90,
-  "avg_heart_rate": 6,
+  "sleep_hours": 7,
+  "exercise_frequency": 3,
   "work_stress_level": 5,
-  "mood_score": 7,
-  "fitness_level": 6,
-  "resting_heart_rate": 65
+  "mood_rating": 6,
+  "energy_level": 6
 }
 ```
 
@@ -578,11 +565,10 @@ For structured prediction input, use JSON format with the same field names:
   {
     "id": "unique_identifier",
     "age": 30,
-    "sleep_hours": 7.5,
-    "exercise_minutes": 90,
-    "avg_heart_rate": 6,
+    "sleep_hours": 7,
+    "exercise_frequency": 3,
     "work_stress_level": 5,
-    "mood_score": 7,
+    "mood_rating": 6,
     "fitness_level": 6,
     "resting_heart_rate": 65
   }
@@ -831,7 +817,7 @@ curl -X GET http://localhost:8000/models
 # Step 3: Test the new model with predictions
 curl -X POST "http://localhost:8000/predict" \
      -H "Content-Type: application/json" \
-     -d '{"age": 30, "sleep_hours": 7, ...}'
+     -d '{"age": 30, "sleep_hours": 7, "exercise_frequency": 3, "work_stress_level": 5, "mood_rating": 6, "energy_level": 6}'
 
 # Step 4: If satisfied, promote to production
 curl -X POST http://localhost:8000/models/api_trained_gradient_boosting_20241201_150000/1.0.0/promote

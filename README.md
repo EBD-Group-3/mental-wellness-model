@@ -66,14 +66,13 @@ python cli.py train --data your_data.csv --output my_model.joblib
 ```bash
 python cli.py predict --model my_model.joblib \
     --age 30 \
-    --sleep-hours 6 \
-    --exercise-frequency 2 \
-    --social-interaction-score 5 \
-    --work-stress-level 7 \
-    --financial-stress 6 \
-    --mood-rating 4 \
-    --energy-level 4 \
-    --concentration-difficulty 6
+    --sleep-hours 7 \
+    --exercise-minutes 90 \
+    --work-stress-level 5 \
+    --mood-rating 6 \
+    --energy-level 6 \
+    --avg-heart-rate 70 \
+    --resting-heart-rate 65
 ```
 
 ## 💻 Programmatic Usage
@@ -103,8 +102,11 @@ individual_features = {
     'age': 30,
     'sleep_hours': 7,
     'exercise_minutes': 90,
-    'mood_rating': 5,
-    # ... other features
+    'work_stress_level': 5,
+    'mood_rating': 6,
+    'energy_level': 6,
+    'avg_heart_rate': 70,
+    'resting_heart_rate': 65
 }
 
 predictions = predictor.predict_individual(individual_features)
