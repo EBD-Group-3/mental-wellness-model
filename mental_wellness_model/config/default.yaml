@@ -17,10 +17,10 @@ data:
     - "age"
     - "sleep_hours"
     - "exercise_minutes"
-    - "avg_heart_rate"
     - "work_stress_level"
-    - "mood_score"
-    - "fitness_level"
+    - "mood_rating"
+    - "energy_level"
+    - "avg_heart_rate"
     - "resting_heart_rate"
 
 # Feature Engineering Configuration

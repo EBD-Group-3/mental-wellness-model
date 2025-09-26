@@ -71,6 +71,11 @@ class FeatureEngineer:
                 featured_df['exercise_minutes'] / 30  # normalize exercise minutes (per session equivalent)
             ) / 2
         
+        # Sleep quality indicator
+        if 'sleep_hours' in df.columns:
+            # Create sleep quality score (7-8 hours is optimal)
+            featured_df['sleep_quality_score'] = 1 - abs(featured_df['sleep_hours'] - 7.5) / 4.5
+        
         # Risk indicators
         if 'resting_heart_rate' in df.columns:
             # Create cardiovascular risk indicator (higher resting HR = higher risk)

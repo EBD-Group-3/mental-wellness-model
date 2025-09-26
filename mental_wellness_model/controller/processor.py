@@ -56,10 +56,10 @@ class DataProcessor:
             'age': np.random.normal(35, 12, n_samples).clip(18, 80),
             'sleep_hours': np.random.normal(7, 1.5, n_samples).clip(3, 12),
             'exercise_minutes': np.random.randint(0, 240, n_samples),  # minutes per week
-            'avg_heart_rate': np.random.normal(70, 10, n_samples).clip(50, 120),  # beats per minute
             'work_stress_level': np.random.normal(5, 2, n_samples).clip(1, 10),
-            'mood_score': np.random.normal(6, 2, n_samples).clip(1, 10),
-            'fitness_level': np.random.normal(6, 2, n_samples).clip(1, 10),
+            'mood_rating': np.random.normal(6, 2, n_samples).clip(1, 10),
+            'energy_level': np.random.normal(6, 2, n_samples).clip(1, 10),
+            'avg_heart_rate': np.random.normal(70, 10, n_samples).clip(50, 120),  # beats per minute
             'resting_heart_rate': np.random.normal(65, 8, n_samples).clip(50, 90),  # beats per minute at rest
         }
         
@@ -68,16 +68,20 @@ class DataProcessor:
         # Generate target variables based on features
         depression_risk_prob = (
             0.1 +
-            0.1 * (10 - df['mood_score']) / 10 +
-            0.1 * (10 - df['fitness_level']) / 10 +
+            0.2 * (10 - df['mood_rating']) / 10 +
+            0.15 * (10 - df['energy_level']) / 10 +
             0.1 * df['work_stress_level'] / 10 +
-            0.05 * (df['resting_heart_rate'] - 60) / 30 +  # higher resting heart rate increases depression risk
-            0.05 * (8 - df['sleep_hours']) / 8
+            0.1 * (8 - df['sleep_hours']) / 8 +
+            0.05 * (120 - df['exercise_minutes']) / 120 +  # less exercise increases depression risk
+            0.05 * (df['resting_heart_rate'] - 60) / 30  # higher resting heart rate increases depression risk
         ).clip(0, 1)
         
         anxiety_risk_prob = (
             0.1 +
-            0.15 * df['work_stress_level'] / 10 +
+            0.2 * df['work_stress_level'] / 10 +
+            0.15 * (10 - df['energy_level']) / 10 +
+            0.1 * (10 - df['mood_rating']) / 10 +
+            0.05 * (8 - df['sleep_hours']) / 8 +  # poor sleep increases anxiety risk
             0.1 * (df['avg_heart_rate'] - 60) / 60 +  # higher heart rate increases anxiety risk
             0.05 * (df['resting_heart_rate'] - 60) / 30  # higher resting heart rate increases anxiety risk
         ).clip(0, 1)
@@ -128,7 +132,7 @@ class DataProcessor:
         Returns:
             True if data is valid, False otherwise
         """
-        required_columns = ['age', 'sleep_hours', 'mood_score', 'fitness_level']
+        required_columns = ['age', 'sleep_hours', 'exercise_minutes', 'work_stress_level', 'mood_rating', 'energy_level', 'avg_heart_rate', 'resting_heart_rate']
         
         # Check required columns exist
         missing_columns = set(required_columns) - set(df.columns)
@@ -140,7 +144,12 @@ class DataProcessor:
         validations = [
             (df['age'] >= 0).all(),
             (df['sleep_hours'] >= 0).all(),
-            (df['mood_score'] >= 1).all() and (df['mood_score'] <= 10).all(),
+            (df['exercise_minutes'] >= 0).all(),
+            (df['work_stress_level'] >= 1).all() and (df['work_stress_level'] <= 10).all(),
+            (df['mood_rating'] >= 1).all() and (df['mood_rating'] <= 10).all(),
+            (df['energy_level'] >= 1).all() and (df['energy_level'] <= 10).all(),
+            (df['avg_heart_rate'] >= 40).all() and (df['avg_heart_rate'] <= 200).all(),
+            (df['resting_heart_rate'] >= 40).all() and (df['resting_heart_rate'] <= 120).all(),
         ]
         
         if not all(validations):

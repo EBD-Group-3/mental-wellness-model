@@ -272,7 +272,11 @@ class MentalWellnessPredictor:
         
         self.models = model_data['models']
         self.feature_columns = model_data['feature_columns']
-        self.model_type = model_data['model_type']
-        self.is_trained = model_data['is_trained']
+        self.model_type = model_data.get('model_type', self.model_type)
+        self.is_trained = model_data.get('is_trained', True)  # Default to True if successfully loaded
         
-        self.logger.info(f"Models loaded from {filepath}")
+        # Ensure the model is marked as trained if we have valid models
+        if self.models and len(self.models) > 0:
+            self.is_trained = True
+        
+        self.logger.info(f"Models loaded from {filepath}, is_trained: {self.is_trained}")
