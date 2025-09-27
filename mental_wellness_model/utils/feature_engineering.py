@@ -43,14 +43,25 @@ class FeatureEngineer:
         if 'work_stress_level' in df.columns:
             featured_df['work_stress_normalized'] = featured_df['work_stress_level'] / 10.0
         
-        # Mood and fitness interaction
-        if all(col in df.columns for col in ['mood_score', 'fitness_level']):
-            featured_df['mood_fitness_interaction'] = (
-                featured_df['mood_score'] * featured_df['fitness_level']
+        # Mood and energy interaction
+        if all(col in df.columns for col in ['mood_rating', 'energy_level']):
+            featured_df['mood_energy_interaction'] = (
+                featured_df['mood_rating'] * featured_df['energy_level']
             )
-            featured_df['mood_fitness_ratio'] = (
-                featured_df['mood_score'] / (featured_df['fitness_level'] + 0.1)
+            featured_df['mood_energy_ratio'] = (
+                featured_df['mood_rating'] / (featured_df['energy_level'] + 0.1)
             )
+        
+        # Total stress score combining work stress with physical indicators
+        if all(col in df.columns for col in ['work_stress_level', 'avg_heart_rate', 'resting_heart_rate']):
+            # Normalize heart rate indicators and combine with work stress
+            hr_stress = (featured_df['avg_heart_rate'] - 60) / 40  # normalize around baseline
+            resting_stress = (featured_df['resting_heart_rate'] - 60) / 30
+            featured_df['total_stress_score'] = (
+                featured_df['work_stress_level'] / 10 * 0.6 +  # work stress (60% weight)
+                hr_stress.clip(0, 1) * 0.2 +  # heart rate stress (20% weight)
+                resting_stress.clip(0, 1) * 0.2  # resting heart rate stress (20% weight)
+            ).clip(0, 1) * 10  # scale back to 1-10
         
         # Age-based features
         if 'age' in df.columns:
@@ -113,13 +124,17 @@ class FeatureEngineer:
         Returns:
             Self for method chaining
         """
+        # Exclude target columns from scaling
+        target_columns = ['depression_risk', 'anxiety_risk', 'onset_day']
         feature_df = df[self.feature_names] if self.feature_names else df
         numeric_columns = feature_df.select_dtypes(include=[np.number]).columns
+        # Remove target columns from numeric columns to be scaled
+        numeric_columns = [col for col in numeric_columns if col not in target_columns]
         
         if len(numeric_columns) > 0:
             self.scaler.fit(feature_df[numeric_columns])
             self.is_fitted = True
-            self.logger.info(f"Fitted scaler on {len(numeric_columns)} numeric features")
+            self.logger.info(f"Fitted scaler on {len(numeric_columns)} numeric features (excluding targets)")
         
         return self
     
@@ -137,9 +152,13 @@ class FeatureEngineer:
             self.logger.warning("Scaler not fitted. Call fit_scaler() first.")
             return df
         
+        # Exclude target columns from scaling
+        target_columns = ['depression_risk', 'anxiety_risk', 'onset_day']
         transformed_df = df.copy()
         feature_df = transformed_df[self.feature_names] if self.feature_names else transformed_df
         numeric_columns = feature_df.select_dtypes(include=[np.number]).columns
+        # Remove target columns from numeric columns to be scaled
+        numeric_columns = [col for col in numeric_columns if col not in target_columns]
         
         if len(numeric_columns) > 0:
             transformed_df[numeric_columns] = self.scaler.transform(feature_df[numeric_columns])

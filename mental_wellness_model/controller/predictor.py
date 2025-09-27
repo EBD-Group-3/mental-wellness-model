@@ -6,10 +6,10 @@ Implements machine learning models for early detection of depression and anxiety
 import pandas as pd
 import numpy as np
 from typing import Dict, List, Optional, Tuple, Union
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
+from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.model_selection import train_test_split, cross_val_score
-from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix
+from sklearn.metrics import classification_report, roc_auc_score, confusion_matrix, mean_squared_error, mean_absolute_error
 import joblib
 import logging
 import os
@@ -48,6 +48,12 @@ class MentalWellnessPredictor:
                 random_state=42,
                 class_weight='balanced'
             )
+            # Regression model for onset day prediction
+            self.models['onset_day'] = RandomForestRegressor(
+                n_estimators=100,
+                max_depth=10,
+                random_state=42
+            )
         elif model_type == 'logistic_regression':
             self.models['depression'] = LogisticRegression(
                 random_state=42,
@@ -59,6 +65,8 @@ class MentalWellnessPredictor:
                 class_weight='balanced',
                 max_iter=1000
             )
+            # Linear regression model for onset day prediction
+            self.models['onset_day'] = LinearRegression()
         else:
             raise ValueError(f"Unsupported model type: {model_type}")
     
@@ -74,14 +82,14 @@ class MentalWellnessPredictor:
             Dictionary with training metrics for each model
         """
         # Prepare features and targets
-        target_columns = ['depression_risk', 'anxiety_risk']
+        target_columns = ['depression_risk', 'anxiety_risk', 'onset_day']
         self.feature_columns = [col for col in df.columns if col not in target_columns]
         
         X = df[self.feature_columns]
         
         results = {}
         
-        # Train separate models for depression and anxiety
+        # Train classification models for depression and anxiety
         for condition in ['depression', 'anxiety']:
             target_col = f'{condition}_risk'
             
@@ -126,6 +134,49 @@ class MentalWellnessPredictor:
             
             self.logger.info(f"{condition.capitalize()} model - Test Accuracy: {test_score:.3f}, AUC: {auc_score:.3f}")
         
+        # Train regression model for onset day prediction
+        if 'onset_day' in df.columns:
+            self.logger.info("Training onset day prediction model...")
+            y_onset = df['onset_day']
+            
+            # Split data for regression (no stratification needed)
+            X_train, X_test, y_train_onset, y_test_onset = train_test_split(
+                X, y_onset, test_size=test_size, random_state=42
+            )
+            
+            # Train onset day model
+            self.models['onset_day'].fit(X_train, y_train_onset)
+            
+            # Evaluate regression model
+            train_score_onset = self.models['onset_day'].score(X_train, y_train_onset)
+            test_score_onset = self.models['onset_day'].score(X_test, y_test_onset)
+            
+            # Cross-validation for regression
+            cv_scores_onset = cross_val_score(self.models['onset_day'], X_train, y_train_onset, cv=5)
+            
+            # Predictions for detailed metrics
+            y_pred_onset = self.models['onset_day'].predict(X_test)
+            
+            # Calculate regression metrics
+            mse = mean_squared_error(y_test_onset, y_pred_onset)
+            mae = mean_absolute_error(y_test_onset, y_pred_onset)
+            rmse = np.sqrt(mse)
+            
+            results['onset_day'] = {
+                'train_r2_score': train_score_onset,
+                'test_r2_score': test_score_onset,
+                'cv_mean_r2_score': cv_scores_onset.mean(),
+                'cv_std_r2_score': cv_scores_onset.std(),
+                'mse': mse,
+                'mae': mae,
+                'rmse': rmse,
+                'prediction_range': f"{y_pred_onset.min():.1f} - {y_pred_onset.max():.1f} days"
+            }
+            
+            self.logger.info(f"Onset day model - Test R² Score: {test_score_onset:.3f}, RMSE: {rmse:.2f} days")
+        else:
+            self.logger.warning("onset_day column not found. Skipping onset day model training.")
+        
         self.is_trained = True
         return results
     
@@ -153,6 +204,12 @@ class MentalWellnessPredictor:
                 
                 predictions[pred_col] = self.models[condition].predict(X)
                 predictions[prob_col] = self.models[condition].predict_proba(X)[:, 1]
+        
+        # Add onset day predictions
+        if 'onset_day' in self.models:
+            predictions['onset_day_prediction'] = self.models['onset_day'].predict(X)
+            # Round to nearest day and ensure minimum of 1 day
+            predictions['onset_day_prediction'] = np.maximum(1, np.round(predictions['onset_day_prediction']))
         
         return predictions
     
@@ -191,6 +248,18 @@ class MentalWellnessPredictor:
                     'risk_level': self._get_risk_level(probability)
                 }
         
+        # Add onset day prediction
+        if 'onset_day' in self.models:
+            onset_prediction = self.models['onset_day'].predict(X)[0]
+            # Round to nearest day and ensure minimum of 1 day
+            onset_days = max(1, round(onset_prediction))
+            
+            results['onset_day'] = {
+                'days_until_breakdown': int(onset_days),
+                'severity_level': self._get_onset_severity(onset_days),
+                'raw_prediction': float(onset_prediction)
+            }
+        
         return results
     
     def _get_risk_level(self, probability: float) -> str:
@@ -211,6 +280,27 @@ class MentalWellnessPredictor:
             return 'High Risk'
         else:
             return 'Very High Risk'
+    
+    def _get_onset_severity(self, days: int) -> str:
+        """
+        Convert onset days to severity level description.
+        
+        Args:
+            days: Number of days until potential breakdown
+            
+        Returns:
+            Severity level description
+        """
+        if days <= 7:
+            return 'Critical - Immediate Attention Required'
+        elif days <= 14:
+            return 'High Urgency - Schedule Intervention Soon'
+        elif days <= 30:
+            return 'Moderate Urgency - Monitor Closely'
+        elif days <= 60:
+            return 'Low Urgency - Preventive Measures Recommended'
+        else:
+            return 'Stable - Continue Regular Monitoring'
     
     def get_feature_importance(self, condition: str = 'depression') -> pd.DataFrame:
         """

@@ -17,13 +17,14 @@ Your custom training data CSV file should include the following columns:
 ### Required Target Columns:
 - `depression_risk`: Depression risk label (0 = No Risk, 1 = Risk)
 - `anxiety_risk`: Anxiety risk label (0 = No Risk, 1 = Risk)
+- `onset_day`: Number of days until potential mental breakdown (1-365 days)
 
 ## Sample CSV Format:
 ```csv
-age,sleep_hours,exercise_minutes,work_stress_level,mood_rating,energy_level,avg_heart_rate,resting_heart_rate,depression_risk,anxiety_risk
-25,8.2,150,3,8,8,65,60,0,0
-30,7.1,90,5,6,6,70,65,0,0
-35,5.5,30,8,3,3,85,75,1,1
+age,sleep_hours,exercise_minutes,work_stress_level,mood_rating,energy_level,avg_heart_rate,resting_heart_rate,depression_risk,anxiety_risk,onset_day
+25,8.2,150,3,8,8,65,60,0,0,180
+30,7.1,90,5,6,6,70,65,0,0,120
+35,5.5,30,8,3,3,85,75,1,1,14
 ```
 
 ## API Usage

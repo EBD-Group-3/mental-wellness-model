@@ -118,12 +118,10 @@ print(predictions)
 ```
 mental-wellness-model/
 ├── mental_wellness_model/          # Main package
-│   ├── data/                      # Data processing modules
+│   ├── controller/                # Controllers and ML models
 │   │   ├── __init__.py
-│   │   └── processor.py
-│   ├── models/                    # ML models
-│   │   ├── __init__.py
-│   │   └── predictor.py
+│   │   ├── processor.py           # Data processing
+│   │   └── predictor.py           # ML prediction models
 │   ├── utils/                     # Utilities
 │   │   ├── __init__.py
 │   │   └── feature_engineering.py

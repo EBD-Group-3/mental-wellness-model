@@ -89,6 +89,24 @@ class DataProcessor:
         df['depression_risk'] = np.random.binomial(1, depression_risk_prob)
         df['anxiety_risk'] = np.random.binomial(1, anxiety_risk_prob)
         
+        # Generate onset day predictions (days until potential mental breakdown)
+        # Base onset days calculation on depression and anxiety risk only
+        combined_risk_score = (
+            0.6 * depression_risk_prob +
+            0.4 * anxiety_risk_prob
+        ).clip(0, 1)
+        
+        # Convert risk score to days (higher risk = fewer days)
+        # Range: 7-365 days, with more gradual relationship
+        # Use linear interpolation for more realistic day distribution
+        min_days = 7   # Minimum 1 week even for highest risk
+        max_days = 365 # Maximum 1 year for lowest risk
+        base_days = min_days + (max_days - min_days) * (1 - combined_risk_score)
+        
+        # Add some randomness and ensure minimum of 7 days
+        noise = np.random.normal(0, base_days * 0.15, n_samples)
+        df['onset_day'] = np.maximum(min_days, base_days + noise).round().astype(int)
+        
         return df
     
     def clean_data(self, df: pd.DataFrame) -> pd.DataFrame:
@@ -151,6 +169,14 @@ class DataProcessor:
             (df['avg_heart_rate'] >= 40).all() and (df['avg_heart_rate'] <= 200).all(),
             (df['resting_heart_rate'] >= 40).all() and (df['resting_heart_rate'] <= 120).all(),
         ]
+        
+        # Additional validation for onset_day if present
+        if 'onset_day' in df.columns:
+            validations.extend([
+                (df['onset_day'] >= 1).all(),  # At least 1 day
+                (df['onset_day'] <= 365).all(),  # Maximum 1 year
+                df['onset_day'].dtype in ['int64', 'int32', 'float64']  # Numeric type
+            ])
         
         if not all(validations):
             self.logger.error("Data contains invalid values")

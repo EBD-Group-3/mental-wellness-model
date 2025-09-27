@@ -50,6 +50,8 @@ class TestFeatureEngineer(unittest.TestCase):
         self.assertGreaterEqual(len(featured_df.columns), original_cols)
         self.assertIn('sleep_deficit', featured_df.columns)
         self.assertIn('total_stress_score', featured_df.columns)
+        self.assertIn('cardio_fitness_score', featured_df.columns)
+        self.assertIn('mood_energy_interaction', featured_df.columns)
     
     def test_feature_scaling(self):
         """Test feature scaling."""
@@ -101,8 +103,13 @@ class TestMentalWellnessPredictor(unittest.TestCase):
         results = self.predictor.predict_individual(features)
         self.assertIn('depression', results)
         self.assertIn('anxiety', results)
+        self.assertIn('onset_day', results)
         self.assertIn('probability', results['depression'])
         self.assertIn('risk_level', results['depression'])
+        self.assertIn('days_until_breakdown', results['onset_day'])
+        self.assertIn('severity_level', results['onset_day'])
+        self.assertIsInstance(results['onset_day']['days_until_breakdown'], int)
+        self.assertGreaterEqual(results['onset_day']['days_until_breakdown'], 1)
     
     def test_feature_importance(self):
         """Test feature importance extraction."""
@@ -113,6 +120,48 @@ class TestMentalWellnessPredictor(unittest.TestCase):
         self.assertGreater(len(importance_df), 0)
         self.assertIn('feature', importance_df.columns)
         self.assertIn('importance', importance_df.columns)
+    
+    def test_onset_day_prediction(self):
+        """Test onset day prediction functionality."""
+        # Train the model first
+        self.predictor.train(self.test_df)
+        
+        # Test batch predictions
+        predictions = self.predictor.predict(self.test_df.head(5))
+        self.assertIn('onset_day_prediction', predictions.columns)
+        self.assertTrue((predictions['onset_day_prediction'] >= 1).all())
+        
+        # Test individual prediction
+        features = {
+            'age': 35,
+            'sleep_hours': 5,
+            'exercise_minutes': 30,
+            'work_stress_level': 8,
+            'mood_rating': 3,
+            'energy_level': 3,
+            'avg_heart_rate': 85,
+            'resting_heart_rate': 75
+        }
+        
+        results = self.predictor.predict_individual(features)
+        onset_result = results['onset_day']
+        
+        # Verify onset day result structure
+        self.assertIn('days_until_breakdown', onset_result)
+        self.assertIn('severity_level', onset_result)
+        self.assertIn('raw_prediction', onset_result)
+        
+        # Verify reasonable values
+        days = onset_result['days_until_breakdown']
+        self.assertIsInstance(days, int)
+        self.assertGreaterEqual(days, 1)
+        self.assertLessEqual(days, 365)
+        
+        # Verify severity level is a string
+        self.assertIsInstance(onset_result['severity_level'], str)
+        
+        # Test high-stress scenario should have fewer days
+        self.assertLess(days, 100)  # High stress should predict breakdown within ~3 months
 
 
 if __name__ == '__main__':

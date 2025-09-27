@@ -66,6 +66,7 @@ class PredictionResult(BaseModel):
     """Result for a single prediction."""
     depression: Dict[str, Union[str, float, bool]] = Field(..., description="Depression prediction results")
     anxiety: Dict[str, Union[str, float, bool]] = Field(..., description="Anxiety prediction results")
+    onset_day: Dict[str, Union[str, int, float]] = Field(..., description="Mental breakdown onset day prediction")
 
 
 class BatchPredictionResponse(BaseModel):
@@ -369,7 +370,8 @@ async def predict_individual(
         
         return PredictionResult(
             depression=results['depression'],
-            anxiety=results['anxiety']
+            anxiety=results['anxiety'],
+            onset_day=results['onset_day']
         )
         
     except Exception as e:
@@ -395,7 +397,8 @@ async def predict_batch(
             
             predictions.append(PredictionResult(
                 depression=results['depression'],
-                anxiety=results['anxiety']
+                anxiety=results['anxiety'],
+                onset_day=results['onset_day']
             ))
             
             # Count high-risk cases
