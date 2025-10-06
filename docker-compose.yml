@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # FastAPI service with Gunicorn
+  # FastAPI service with Gunicorn (Production with secure credentials)
   mental-wellness-api:
     build: .
     container_name: mental-wellness-api
@@ -19,6 +19,16 @@ services:
     environment:
       - PYTHONPATH=/app
       - GUNICORN_RELOAD=false  # Set to true for development
+      - ENVIRONMENT=production
+      # 🔐 SECURE CREDENTIALS - Set these environment variables:
+      # Option 1: Full JSON credentials (recommended)
+      # - GOOGLE_CREDENTIALS_JSON=${GOOGLE_CREDENTIALS_JSON}
+      
+      # Option 2: Individual credential fields (alternative)
+      # - GCS_PROJECT_ID=${GCS_PROJECT_ID:-mentalwellness-473814}
+      # - GCS_CLIENT_EMAIL=${GCS_CLIENT_EMAIL}
+      # - GCS_PRIVATE_KEY_ID=${GCS_PRIVATE_KEY_ID}
+      # - GCS_PRIVATE_KEY=${GCS_PRIVATE_KEY}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -26,6 +36,9 @@ services:
       timeout: 10s
       retries: 3
       start_period: 40s
+    # Alternative: Use Docker secrets for even better security
+    # secrets:
+    #   - gcs_credentials
 
   # Development API service (with auto-reload)
   mental-wellness-api-dev:
@@ -86,3 +99,8 @@ volumes:
     driver: local
   output_data:
     driver: local
+
+# 🔐 Uncomment for Docker secrets approach (highest security)
+# secrets:
+#   gcs_credentials:
+#     file: ./credentials/mentalwellness-473814-key.json
