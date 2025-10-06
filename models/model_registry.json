@@ -1,0 +1,40 @@
+{
+  "models": [
+    {
+      "name": "gcs_integration_test",
+      "path": "models\\production\\gcs_integration_test.joblib",
+      "type": "production",
+      "created_at": "2025-10-06T20:04:57.609306",
+      "model_type": "random_forest",
+      "description": "Test model for GCS integration",
+      "is_trained": true,
+      "feature_columns": [
+        "age",
+        "sleep_hours",
+        "exercise_minutes",
+        "work_stress_level",
+        "mood_rating",
+        "energy_level",
+        "avg_heart_rate",
+        "resting_heart_rate",
+        "sleep_deficit",
+        "sleep_excess",
+        "sleep_quality_score",
+        "work_stress_normalized",
+        "mood_energy_interaction",
+        "mood_energy_ratio",
+        "total_stress_score",
+        "age_young_adult",
+        "age_adult",
+        "age_middle_aged",
+        "age_senior",
+        "age_elderly",
+        "cardio_fitness_score",
+        "cardio_risk_score"
+      ],
+      "gcs_synced": true,
+      "gcs_uploaded_at": "2025-10-06T20:04:59.863774"
+    }
+  ],
+  "current_production": "gcs_integration_test"
+}

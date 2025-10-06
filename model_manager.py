@@ -9,6 +9,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, Optional, List
 import shutil
+import logging
+from gcs_model_storage import GCSModelStorage
 
 
 class ModelManager:
@@ -16,24 +18,44 @@ class ModelManager:
     Manages model storage, versioning, and organization.
     """
     
-    def __init__(self, base_path: str = "/app/models"):
+    def __init__(self, base_path: str = "/app/models", enable_gcs: bool = True):
         """
         Initialize the model manager.
         
         Args:
             base_path: Base directory for model storage
+            enable_gcs: Whether to enable Google Cloud Storage integration
         """
+        self.logger = logging.getLogger(__name__)
         self.base_path = Path(base_path)
         self.production_path = self.base_path / "production"
         self.experiments_path = self.base_path / "experiments" 
         self.backups_path = self.base_path / "backups"
         self.metadata_file = self.base_path / "model_registry.json"
         
+        # Initialize GCS storage
+        self.gcs_storage = None
+        if enable_gcs:
+            try:
+                self.gcs_storage = GCSModelStorage()
+                if self.gcs_storage.is_available():
+                    self.logger.info("GCS model storage initialized successfully")
+                else:
+                    self.logger.warning("GCS model storage not available")
+                    self.gcs_storage = None
+            except Exception as e:
+                self.logger.error(f"Failed to initialize GCS storage: {e}")
+                self.gcs_storage = None
+        
         # Create directories
         self._create_directories()
         
         # Load existing metadata
         self.metadata = self._load_metadata()
+        
+        # Sync with GCS on initialization
+        if self.gcs_storage:
+            self._sync_with_gcs_on_startup()
     
     def _create_directories(self):
         """Create necessary directories."""
@@ -287,4 +309,190 @@ class ModelManager:
             }
         }
         
+        # Add GCS stats if available
+        if self.gcs_storage and self.gcs_storage.is_available():
+            try:
+                gcs_models = self.gcs_storage.list_models()
+                stats["gcs_models"] = len(gcs_models)
+                stats["gcs_available"] = True
+            except Exception as e:
+                self.logger.warning(f"Could not get GCS stats: {e}")
+                stats["gcs_models"] = 0
+                stats["gcs_available"] = False
+        else:
+            stats["gcs_models"] = 0
+            stats["gcs_available"] = False
+        
         return stats
+    
+    def _sync_with_gcs_on_startup(self):
+        """Sync with GCS on startup - download latest models if local storage is empty."""
+        try:
+            if not self.gcs_storage or not self.gcs_storage.is_available():
+                return
+            
+            # Check if we have any local models
+            local_models = self.list_models()
+            if local_models:
+                self.logger.info("Local models found, skipping GCS sync on startup")
+                return
+            
+            # Get models from GCS
+            gcs_models = self.gcs_storage.list_models()
+            if not gcs_models:
+                self.logger.info("No models found in GCS")
+                return
+            
+            # Download the latest model from GCS
+            latest_model = self.gcs_storage.get_latest_model()
+            if latest_model:
+                local_path = self.production_path / f"{latest_model}.joblib"
+                metadata = self.gcs_storage.download_model(latest_model, str(local_path))
+                
+                if metadata and os.path.exists(local_path):
+                    # Add to local metadata
+                    model_info = {
+                        "name": latest_model,
+                        "path": str(local_path),
+                        "type": "production",
+                        "created_at": metadata.get('uploaded_at', datetime.now().isoformat()),
+                        "description": f"Downloaded from GCS: {latest_model}",
+                        "gcs_synced": True,
+                        "gcs_metadata": metadata
+                    }
+                    
+                    self.metadata["models"].append(model_info)
+                    self.metadata["current_production"] = latest_model
+                    self._save_metadata()
+                    
+                    self.logger.info(f"Downloaded and set production model from GCS: {latest_model}")
+        
+        except Exception as e:
+            self.logger.error(f"Failed to sync with GCS on startup: {e}")
+    
+    def upload_model_to_gcs(self, model_name: str, metadata: Dict = None) -> bool:
+        """
+        Upload a specific model to GCS.
+        
+        Args:
+            model_name: Name of the model to upload
+            metadata: Additional metadata to store
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.gcs_storage or not self.gcs_storage.is_available():
+            self.logger.warning("GCS storage not available")
+            return False
+        
+        # Find model info
+        model_info = self.get_model_info(model_name)
+        if not model_info:
+            self.logger.error(f"Model {model_name} not found in local registry")
+            return False
+        
+        model_path = model_info["path"]
+        if not os.path.exists(model_path):
+            self.logger.error(f"Model file not found: {model_path}")
+            return False
+        
+        # Prepare metadata
+        upload_metadata = {
+            "model_name": model_name,
+            "model_type": model_info.get("type", "unknown"),
+            "created_at": model_info.get("created_at"),
+            "description": model_info.get("description", ""),
+            "local_path": model_path,
+            "version": model_info.get("version", "1.0.0")
+        }
+        
+        if metadata:
+            upload_metadata.update(metadata)
+        
+        # Upload to GCS
+        success = self.gcs_storage.upload_model(model_path, model_name, upload_metadata)
+        
+        if success:
+            # Update local metadata to mark as GCS synced
+            model_info["gcs_synced"] = True
+            model_info["gcs_uploaded_at"] = datetime.now().isoformat()
+            self._save_metadata()
+            self.logger.info(f"Successfully uploaded model {model_name} to GCS")
+        
+        return success
+    
+    def download_model_from_gcs(self, model_name: str, local_name: str = None) -> bool:
+        """
+        Download a model from GCS.
+        
+        Args:
+            model_name: Name of the model in GCS
+            local_name: Local name for the model (defaults to GCS name)
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.gcs_storage or not self.gcs_storage.is_available():
+            self.logger.warning("GCS storage not available")
+            return False
+        
+        local_name = local_name or model_name
+        local_path = self.production_path / f"{local_name}.joblib"
+        
+        # Download from GCS
+        metadata = self.gcs_storage.download_model(model_name, str(local_path))
+        
+        if metadata and os.path.exists(local_path):
+            # Add to local metadata
+            model_info = {
+                "name": local_name,
+                "path": str(local_path),
+                "type": "production",
+                "created_at": metadata.get('uploaded_at', datetime.now().isoformat()),
+                "description": f"Downloaded from GCS: {model_name}",
+                "gcs_synced": True,
+                "gcs_metadata": metadata,
+                "downloaded_at": datetime.now().isoformat()
+            }
+            
+            # Remove existing model with same name
+            self.metadata["models"] = [m for m in self.metadata["models"] if m["name"] != local_name]
+            self.metadata["models"].append(model_info)
+            self._save_metadata()
+            
+            self.logger.info(f"Successfully downloaded model {model_name} from GCS as {local_name}")
+            return True
+        
+        return False
+    
+    def sync_production_model_to_gcs(self) -> bool:
+        """
+        Sync the current production model to GCS.
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        if not self.metadata["current_production"]:
+            self.logger.warning("No production model to sync")
+            return False
+        
+        return self.upload_model_to_gcs(
+            self.metadata["current_production"],
+            {"sync_type": "production_sync", "auto_sync": True}
+        )
+    
+    def list_gcs_models(self) -> Dict[str, Dict]:
+        """
+        List all models available in GCS.
+        
+        Returns:
+            Dictionary of models in GCS
+        """
+        if not self.gcs_storage or not self.gcs_storage.is_available():
+            return {}
+        
+        return self.gcs_storage.list_models()
+    
+    def is_gcs_available(self) -> bool:
+        """Check if GCS storage is available."""
+        return self.gcs_storage is not None and self.gcs_storage.is_available()

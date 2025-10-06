@@ -42,6 +42,116 @@ feature_engineer = None
 model_manager = None
 model_metadata = {}
 
+class ModelState:
+    """Singleton class to manage model state across the API."""
+    _instance = None
+    
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.predictor = None
+            cls._instance.data_processor = None
+            cls._instance.feature_engineer = None
+            cls._instance.model_manager = None
+            cls._instance.model_metadata = {}
+            cls._instance.is_initialized = False
+        return cls._instance
+    
+    def initialize_components(self):
+        """Initialize all required components."""
+        if not self.is_initialized:
+            self.data_processor = DataProcessor()
+            self.feature_engineer = FeatureEngineer()
+            self.model_manager = ModelManager()
+            self.is_initialized = True
+            logger.info("Model components initialized successfully")
+    
+    def get_or_create_predictor(self, model_type: str = 'random_forest'):
+        """Get existing predictor or create new one."""
+        if self.predictor is None:
+            self.predictor = MentalWellnessPredictor(model_type=model_type)
+        return self.predictor
+    
+    def load_model_if_available(self):
+        """Try to load any available trained model."""
+        if self.predictor is None or not getattr(self.predictor, 'is_trained', False):
+            # First, try to sync with GCS and load the latest model
+            if self.model_manager and self.model_manager.is_gcs_available():
+                try:
+                    logger.info("Checking GCS for latest models...")
+                    gcs_models = self.model_manager.list_gcs_models()
+                    
+                    if gcs_models:
+                        latest_model = self.model_manager.gcs_storage.get_latest_model()
+                        if latest_model:
+                            # Download latest model from GCS
+                            logger.info(f"Downloading latest model from GCS: {latest_model}")
+                            if self.model_manager.download_model_from_gcs(latest_model):
+                                # Try to load the downloaded model
+                                local_path = self.model_manager.production_path / f"{latest_model}.joblib"
+                                if local_path.exists():
+                                    self.predictor = MentalWellnessPredictor()
+                                    self.predictor.load_model(str(local_path))
+                                    self.model_metadata = {
+                                        "model_path": str(local_path),
+                                        "loaded_at": datetime.now().isoformat(),
+                                        "model_type": getattr(self.predictor, 'model_type', 'unknown'),
+                                        "version": "1.0.0",
+                                        "source": "gcs_download",
+                                        "gcs_model_name": latest_model
+                                    }
+                                    logger.info(f"Successfully loaded model from GCS: {latest_model}")
+                                    return True
+                except Exception as gcs_error:
+                    logger.warning(f"Failed to load model from GCS: {gcs_error}")
+            
+            # Try to load from model manager (local production models)
+            if self.model_manager:
+                production_model_path = self.model_manager.get_production_model_path()
+                if production_model_path and os.path.exists(production_model_path):
+                    self.predictor = MentalWellnessPredictor()
+                    self.predictor.load_model(production_model_path)
+                    model_info = self.model_manager.get_model_info(self.model_manager.metadata["current_production"])
+                    self.model_metadata = model_info or {
+                        "model_path": production_model_path,
+                        "loaded_at": datetime.now().isoformat(),
+                        "source": "local_production"
+                    }
+                    logger.info(f"Loaded production model: {production_model_path}")
+                    return True
+            
+            # Try alternative paths with basic_trained_model as priority fallback
+            possible_paths = [
+                "/app/models/api_trained_model.joblib",
+                "./models/api_trained_model.joblib",
+                "/app/models/trained_model.joblib",
+                "./models/trained_model.joblib",
+                "/app/models/basic_trained_model.joblib",
+                "./models/basic_trained_model.joblib"
+            ]
+            
+            for model_path in possible_paths:
+                if os.path.exists(model_path):
+                    try:
+                        self.predictor = MentalWellnessPredictor()
+                        self.predictor.load_model(model_path)
+                        self.model_metadata = {
+                            "model_path": model_path,
+                            "loaded_at": datetime.now().isoformat(),
+                            "model_type": getattr(self.predictor, 'model_type', 'unknown'),
+                            "version": "1.0.0",
+                            "source": "basic_trained_model" if "basic_trained_model" in model_path else "auto_loaded"
+                        }
+                        logger.info(f"Successfully loaded model from {model_path}")
+                        return True
+                    except Exception as e:
+                        logger.warning(f"Failed to load model from {model_path}: {e}")
+                        continue
+        return False
+
+# Initialize global model state
+model_state = ModelState()
+
 
 # Pydantic models for request/response
 class IndividualFeatures(BaseModel):
@@ -143,62 +253,23 @@ async def load_default_model():
     global predictor, data_processor, feature_engineer, model_manager, model_metadata
     
     try:
-        logger.info("STARTUP: Initializing components...")
-        # Initialize components
-        data_processor = DataProcessor()
-        feature_engineer = FeatureEngineer()
-        logger.info("STARTUP: Creating ModelManager...")
-        model_manager = ModelManager()
-        logger.info("STARTUP: ModelManager created successfully")
+        logger.info("STARTUP: Initializing model state...")
         
-        # Try to load existing production model
-        logger.info("STARTUP: Checking for production model...")
-        production_model_path = model_manager.get_production_model_path()
-        logger.info(f"STARTUP: Production model path: {production_model_path}")
-        if production_model_path and os.path.exists(production_model_path):
-            predictor = MentalWellnessPredictor()
-            predictor.load_model(production_model_path)
-            model_metadata = model_manager.get_model_info(model_manager.metadata["current_production"])
-            logger.info(f"Loaded production model: {production_model_path}")
-            return
+        # Initialize components through model state
+        model_state.initialize_components()
+        
+        # Update global variables for backward compatibility
+        data_processor = model_state.data_processor
+        feature_engineer = model_state.feature_engineer
+        model_manager = model_state.model_manager
+        
+        # Try to load existing model
+        if model_state.load_model_if_available():
+            predictor = model_state.predictor
+            model_metadata = model_state.model_metadata
+            logger.info(f"Model loaded successfully during startup from: {model_metadata.get('model_path', 'unknown')}")
         else:
-            logger.info("STARTUP: No production model found, checking other paths...")
-        
-        # List of possible model paths to try
-        possible_paths = [
-            "/app/models/production_model.joblib",
-            "/app/models/api_trained_model.joblib", 
-            "/app/models/trained_model.joblib",
-            "/app/models/basic_model.joblib",
-            "./models/production_model.joblib",
-            "./models/api_trained_model.joblib",
-            "./models/trained_model.joblib", 
-            "./models/basic_model.joblib"
-        ]
-        
-        # Try to load any available model
-        for model_path in possible_paths:
-            logger.info(f"Checking model path: {model_path}")
-            if os.path.exists(model_path):
-                logger.info(f"File exists at {model_path}, attempting to load...")
-                try:
-                    predictor = MentalWellnessPredictor()
-                    predictor.load_model(model_path)
-                    model_metadata = {
-                        "model_path": model_path,
-                        "loaded_at": datetime.now().isoformat(),
-                        "model_type": getattr(predictor, 'model_type', 'unknown'),
-                        "version": "1.0.0"
-                    }
-                    logger.info(f"Successfully loaded model from {model_path} - is_trained: {predictor.is_trained}")
-                    return
-                except Exception as load_error:
-                    logger.warning(f"Failed to load model from {model_path}: {load_error}")
-                    continue
-            else:
-                logger.info(f"File does not exist: {model_path}")
-        
-        logger.info("No pre-trained model found. Use /train endpoint to train a model.")
+            logger.info("No pre-trained model found during startup. Models will be loaded on-demand when prediction endpoints are called.")
             
     except Exception as e:
         logger.error(f"Error during model loading: {e}")
@@ -206,44 +277,61 @@ async def load_default_model():
 
 def get_predictor():
     """Dependency to get the current predictor instance."""
-    global predictor, data_processor, feature_engineer
+    global predictor, data_processor, feature_engineer, model_metadata
     
-    # If predictor is None or not trained, try to load from disk
-    if predictor is None or (hasattr(predictor, 'is_trained') and not predictor.is_trained):
-        # Try to load existing model
-        model_paths = [
-            '/app/models/api_trained_model.joblib',
-            '/app/models/trained_model.joblib',
-            '/app/models/basic_model.joblib'
-        ]
+    # Ensure components are initialized
+    if not model_state.is_initialized:
+        model_state.initialize_components()
+        data_processor = model_state.data_processor
+        feature_engineer = model_state.feature_engineer
+    
+    # Try to load model if not available
+    if model_state.predictor is None or not getattr(model_state.predictor, 'is_trained', False):
+        if not model_state.load_model_if_available():
+            # If no model could be loaded, try specifically for basic_trained_model
+            basic_model_paths = [
+                "./models/basic_trained_model.joblib",
+                "/app/models/basic_trained_model.joblib",
+                "models/basic_trained_model.joblib"
+            ]
+            
+            for model_path in basic_model_paths:
+                if os.path.exists(model_path):
+                    try:
+                        logger.info(f"Attempting to load basic trained model from {model_path}")
+                        model_state.predictor = MentalWellnessPredictor()
+                        model_state.predictor.load_model(model_path)
+                        model_state.model_metadata = {
+                            "model_path": model_path,
+                            "loaded_at": datetime.now().isoformat(),
+                            "model_type": getattr(model_state.predictor, 'model_type', 'unknown'),
+                            "version": "1.0.0",
+                            "source": "basic_trained_model_fallback"
+                        }
+                        logger.info(f"Successfully loaded basic trained model from {model_path}")
+                        break
+                    except Exception as e:
+                        logger.warning(f"Failed to load basic trained model from {model_path}: {e}")
+                        continue
         
-        for model_path in model_paths:
-            if os.path.exists(model_path):
-                try:
-                    logger.info(f"Loading existing model from {model_path}")
-                    predictor = MentalWellnessPredictor()
-                    predictor.load_model(model_path)
-                    logger.info("Model loaded successfully")
-                    break
-                except Exception as e:
-                    logger.warning(f"Failed to load model from {model_path}: {e}")
-                    continue
+        predictor = model_state.predictor
+        model_metadata = model_state.model_metadata
     
     # Final checks
-    if predictor is None:
+    if model_state.predictor is None:
         raise HTTPException(
             status_code=503,
-            detail="Model not loaded. Please train a model first using /train endpoint."
+            detail="Model not loaded. No trained model found (including basic_trained_model). Please train a model first using /train endpoint."
         )
     
     # Check if predictor has the is_trained attribute and if it's trained
-    if hasattr(predictor, 'is_trained') and not predictor.is_trained:
+    if hasattr(model_state.predictor, 'is_trained') and not model_state.predictor.is_trained:
         raise HTTPException(
             status_code=503,
             detail="Model not trained. Please train a model first using /train endpoint."
         )
     
-    return predictor
+    return model_state.predictor
 
 
 # API Endpoints
@@ -261,11 +349,22 @@ async def root():
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
     """Health check endpoint."""
+    # Ensure model state is initialized
+    if not model_state.is_initialized:
+        model_state.initialize_components()
+    
+    # Check if model is available and try to load if needed
+    if model_state.predictor is None:
+        model_state.load_model_if_available()
+    
+    is_model_loaded = (model_state.predictor is not None and 
+                      getattr(model_state.predictor, 'is_trained', False))
+    
     return HealthResponse(
         status="healthy",
         timestamp=datetime.now(),
-        model_loaded=predictor is not None and predictor.is_trained,
-        model_info=model_metadata if model_metadata else None
+        model_loaded=is_model_loaded,
+        model_info=model_state.model_metadata if model_state.model_metadata else None
     )
 
 
@@ -276,12 +375,16 @@ async def train_model(
 ):
     """Train a new mental wellness prediction model."""
     try:
-        # Initialize components
+        # Initialize components through model state
         global predictor, data_processor, feature_engineer, model_metadata
         
-        data_processor = DataProcessor()
-        feature_engineer = FeatureEngineer()
-        predictor = MentalWellnessPredictor(model_type=request.model_type)
+        # Ensure components are initialized
+        model_state.initialize_components()
+        
+        # Get or create predictor with specified model type
+        predictor = model_state.get_or_create_predictor(request.model_type)
+        data_processor = model_state.data_processor
+        feature_engineer = model_state.feature_engineer
         
         # Load or generate data
         if request.use_sample_data:
@@ -333,8 +436,9 @@ async def train_model(
         model_path = "/app/models/api_trained_model.joblib"
         predictor.save_model(model_path)
         
-        # Update metadata
-        model_metadata = {
+        # Update model state
+        model_state.predictor = predictor
+        model_state.model_metadata = {
             "model_path": model_path,
             "trained_at": datetime.now().isoformat(),
             "model_type": request.model_type,
@@ -343,6 +447,44 @@ async def train_model(
             "performance_metrics": results,
             "version": "1.0.0"
         }
+        
+        # Update global variables for backward compatibility
+        model_metadata = model_state.model_metadata
+        
+        # Upload model to GCS if available
+        gcs_upload_success = False
+        if model_state.model_manager and model_state.model_manager.is_gcs_available():
+            try:
+                # Save model through model manager to get proper metadata
+                model_name = f"api_trained_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                saved_path = model_state.model_manager.save_model(
+                    predictor, 
+                    model_type="production",
+                    model_name=model_name,
+                    description=f"API trained {request.model_type} model"
+                )
+                
+                # Upload to GCS
+                gcs_upload_success = model_state.model_manager.upload_model_to_gcs(
+                    model_name, 
+                    {
+                        "training_request": request.dict(),
+                        "performance_metrics": results,
+                        "api_version": "1.0.0"
+                    }
+                )
+                
+                if gcs_upload_success:
+                    logger.info(f"Successfully uploaded model {model_name} to GCS")
+                    model_state.model_metadata["gcs_uploaded"] = True
+                    model_state.model_metadata["gcs_model_name"] = model_name
+                    model_metadata = model_state.model_metadata
+                else:
+                    logger.warning("Failed to upload model to GCS")
+            except Exception as gcs_error:
+                logger.error(f"Error uploading model to GCS: {gcs_error}")
+        else:
+            logger.info("GCS not available, model saved locally only")
         
         return {
             "message": "Model training completed successfully",
@@ -430,26 +572,35 @@ async def predict_batch(
 @app.get("/model/info")
 async def get_model_info():
     """Get information about the currently loaded model."""
-    if not model_metadata:
+    # Ensure model state is initialized
+    if not model_state.is_initialized:
+        model_state.initialize_components()
+    
+    # Try to load model if not available
+    if model_state.predictor is None:
+        model_state.load_model_if_available()
+    
+    if not model_state.model_metadata:
         raise HTTPException(status_code=404, detail="No model loaded")
     
     # Get additional model manager info if available
     model_manager_info = {}
-    if model_manager:
+    if model_state.model_manager:
         try:
             model_manager_info = {
-                "available_models": model_manager.list_models(),
-                "production_model": model_manager.metadata.get("current_production"),
-                "model_directory": model_manager.models_dir
+                "available_models": model_state.model_manager.list_models(),
+                "production_model": model_state.model_manager.metadata.get("current_production"),
+                "model_directory": str(model_state.model_manager.base_path)
             }
         except Exception as e:
             logger.warning(f"Could not get model manager info: {e}")
     
     return {
-        "model_metadata": model_metadata,
-        "is_trained": predictor is not None and predictor.is_trained,
-        "feature_columns": predictor.feature_columns if predictor else [],
-        "model_manager_info": model_manager_info
+        "model_metadata": model_state.model_metadata,
+        "is_trained": model_state.predictor is not None and getattr(model_state.predictor, 'is_trained', False),
+        "feature_columns": model_state.predictor.feature_columns if model_state.predictor else [],
+        "model_manager_info": model_manager_info,
+        "components_initialized": model_state.is_initialized
     }
 
 
@@ -458,6 +609,11 @@ async def unload_model():
     """Unload the current model."""
     global predictor, model_metadata
     
+    # Clear model state
+    model_state.predictor = None
+    model_state.model_metadata = {}
+    
+    # Clear global variables for backward compatibility
     predictor = None
     model_metadata = {}
     
@@ -466,16 +622,27 @@ async def unload_model():
 
 @app.get("/models")
 async def list_models():
-    """List all available models."""
-    if not model_manager:
+    """List all available models (local and GCS)."""
+    if not model_state.model_manager:
         raise HTTPException(status_code=500, detail="Model manager not available")
     
     try:
-        models = model_manager.list_models()
+        local_models = model_state.model_manager.list_models()
+        gcs_models = {}
+        
+        # Get GCS models if available
+        if model_state.model_manager.is_gcs_available():
+            try:
+                gcs_models = model_state.model_manager.list_gcs_models()
+            except Exception as gcs_e:
+                logger.warning(f"Could not list GCS models: {gcs_e}")
+        
         return {
-            "available_models": models,
-            "production_model": model_manager.metadata.get("current_production"),
-            "model_directory": model_manager.models_dir
+            "local_models": local_models,
+            "gcs_models": gcs_models,
+            "production_model": model_state.model_manager.metadata.get("current_production"),
+            "model_directory": str(model_state.model_manager.base_path),
+            "gcs_available": model_state.model_manager.is_gcs_available()
         }
     except Exception as e:
         logger.error(f"Error listing models: {e}")
@@ -487,19 +654,23 @@ async def promote_model(model_name: str, version: str):
     """Promote a specific model version to production."""
     global predictor, model_metadata
     
-    if not model_manager:
+    if not model_state.model_manager:
         raise HTTPException(status_code=500, detail="Model manager not available")
     
     try:
         # Promote model
-        model_manager.promote_to_production(model_name, version)
+        model_state.model_manager.promote_to_production(model_name, version)
         
         # Load the newly promoted model
-        production_model_path = model_manager.get_production_model_path()
+        production_model_path = model_state.model_manager.get_production_model_path()
         if production_model_path and os.path.exists(production_model_path):
-            predictor = MentalWellnessPredictor()
-            predictor.load_model(production_model_path)
-            model_metadata = model_manager.get_model_info(f"{model_name}_{version}")
+            model_state.predictor = MentalWellnessPredictor()
+            model_state.predictor.load_model(production_model_path)
+            model_state.model_metadata = model_state.model_manager.get_model_info(f"{model_name}_{version}")
+            
+            # Update global variables
+            predictor = model_state.predictor
+            model_metadata = model_state.model_metadata
             
         return {
             "message": f"Model {model_name} v{version} promoted to production",
@@ -508,6 +679,104 @@ async def promote_model(model_name: str, version: str):
     except Exception as e:
         logger.error(f"Error promoting model: {e}")
         raise HTTPException(status_code=500, detail=f"Error promoting model: {str(e)}")
+
+
+@app.post("/models/{model_name}/upload-to-gcs")
+async def upload_model_to_gcs(model_name: str):
+    """Upload a specific model to Google Cloud Storage."""
+    if not model_state.model_manager:
+        raise HTTPException(status_code=500, detail="Model manager not available")
+    
+    if not model_state.model_manager.is_gcs_available():
+        raise HTTPException(status_code=503, detail="Google Cloud Storage not available")
+    
+    try:
+        success = model_state.model_manager.upload_model_to_gcs(model_name)
+        if success:
+            return {
+                "message": f"Model {model_name} successfully uploaded to GCS",
+                "bucket": "mental_wellness_data_lake",
+                "folder": "Model"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to upload model to GCS")
+    except Exception as e:
+        logger.error(f"Error uploading model to GCS: {e}")
+        raise HTTPException(status_code=500, detail=f"Error uploading model to GCS: {str(e)}")
+
+
+@app.post("/models/{model_name}/download-from-gcs")
+async def download_model_from_gcs(model_name: str, local_name: str = None):
+    """Download a model from Google Cloud Storage."""
+    if not model_state.model_manager:
+        raise HTTPException(status_code=500, detail="Model manager not available")
+    
+    if not model_state.model_manager.is_gcs_available():
+        raise HTTPException(status_code=503, detail="Google Cloud Storage not available")
+    
+    try:
+        local_name = local_name or model_name
+        success = model_state.model_manager.download_model_from_gcs(model_name, local_name)
+        if success:
+            return {
+                "message": f"Model {model_name} successfully downloaded from GCS as {local_name}",
+                "local_name": local_name,
+                "bucket": "mental_wellness_data_lake",
+                "folder": "Model"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to download model from GCS")
+    except Exception as e:
+        logger.error(f"Error downloading model from GCS: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading model from GCS: {str(e)}")
+
+
+@app.post("/models/sync-production-to-gcs")
+async def sync_production_to_gcs():
+    """Sync the current production model to Google Cloud Storage."""
+    if not model_state.model_manager:
+        raise HTTPException(status_code=500, detail="Model manager not available")
+    
+    if not model_state.model_manager.is_gcs_available():
+        raise HTTPException(status_code=503, detail="Google Cloud Storage not available")
+    
+    try:
+        success = model_state.model_manager.sync_production_model_to_gcs()
+        if success:
+            production_model = model_state.model_manager.metadata.get("current_production")
+            return {
+                "message": f"Production model {production_model} successfully synced to GCS",
+                "model_name": production_model,
+                "bucket": "mental_wellness_data_lake",
+                "folder": "Model"
+            }
+        else:
+            raise HTTPException(status_code=500, detail="Failed to sync production model to GCS")
+    except Exception as e:
+        logger.error(f"Error syncing production model to GCS: {e}")
+        raise HTTPException(status_code=500, detail=f"Error syncing production model to GCS: {str(e)}")
+
+
+@app.get("/models/gcs")
+async def list_gcs_models():
+    """List all models available in Google Cloud Storage."""
+    if not model_state.model_manager:
+        raise HTTPException(status_code=500, detail="Model manager not available")
+    
+    if not model_state.model_manager.is_gcs_available():
+        raise HTTPException(status_code=503, detail="Google Cloud Storage not available")
+    
+    try:
+        gcs_models = model_state.model_manager.list_gcs_models()
+        return {
+            "gcs_models": gcs_models,
+            "bucket": "mental_wellness_data_lake",
+            "folder": "Model",
+            "total_models": len(gcs_models)
+        }
+    except Exception as e:
+        logger.error(f"Error listing GCS models: {e}")
+        raise HTTPException(status_code=500, detail=f"Error listing GCS models: {str(e)}")
 
 
 # Error handlers
