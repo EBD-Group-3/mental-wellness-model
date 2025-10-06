@@ -14,6 +14,7 @@ from google.auth import default
 from google.oauth2 import service_account
 import joblib
 import tempfile
+from secure_credential_manager import create_secure_gcs_client
 
 
 logger = logging.getLogger(__name__)
@@ -46,27 +47,20 @@ class GCSModelStorage:
         self._initialize_client()
     
     def _initialize_client(self):
-        """Initialize Google Cloud Storage client."""
+        """Initialize Google Cloud Storage client using secure credential manager."""
         try:
-            # Try to load credentials from file first
-            if os.path.exists(self.credentials_path):
-                logger.info(f"Loading GCS credentials from {self.credentials_path}")
-                credentials = service_account.Credentials.from_service_account_file(
-                    self.credentials_path,
-                    scopes=['https://www.googleapis.com/auth/cloud-platform']
-                )
-                self.client = storage.Client(credentials=credentials)
+            # Use secure credential manager
+            self.client = create_secure_gcs_client()
+            
+            if self.client:
+                # Get bucket reference
+                self.bucket = self.client.bucket(self.bucket_name)
+                logger.info(f"✅ Successfully initialized secure GCS client for bucket: {self.bucket_name}")
             else:
-                # Fall back to default credentials (useful for Cloud Run, etc.)
-                logger.info("Using default GCS credentials")
-                self.client = storage.Client()
-            
-            # Get bucket reference
-            self.bucket = self.client.bucket(self.bucket_name)
-            logger.info(f"Successfully initialized GCS client for bucket: {self.bucket_name}")
-            
+                logger.error("❌ Failed to create secure GCS client")
+                
         except Exception as e:
-            logger.error(f"Failed to initialize GCS client: {e}")
+            logger.error(f"❌ Failed to initialize GCS client: {e}")
             self.client = None
             self.bucket = None
     
