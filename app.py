@@ -75,19 +75,38 @@ class ModelState:
     def load_model_if_available(self):
         """Try to load any available trained model."""
         if self.predictor is None or not getattr(self.predictor, 'is_trained', False):
-            # First, try to sync with GCS and load the latest model
+            # First, try to load the standard basic_trained_model from GCS
             if self.model_manager and self.model_manager.is_gcs_available():
                 try:
-                    logger.info("Checking GCS for latest models...")
+                    logger.info("Checking GCS for basic_trained_model...")
                     gcs_models = self.model_manager.list_gcs_models()
                     
-                    if gcs_models:
+                    # Look specifically for basic_trained_model first
+                    if "basic_trained_model" in gcs_models:
+                        logger.info("Found basic_trained_model in GCS, downloading...")
+                        if self.model_manager.download_model_from_gcs("basic_trained_model"):
+                            # Try to load the downloaded model
+                            local_path = self.model_manager.production_path / "basic_trained_model.joblib"
+                            if local_path.exists():
+                                self.predictor = MentalWellnessPredictor()
+                                self.predictor.load_model(str(local_path))
+                                self.model_metadata = {
+                                    "model_path": str(local_path),
+                                    "loaded_at": datetime.now().isoformat(),
+                                    "model_type": getattr(self.predictor, 'model_type', 'unknown'),
+                                    "version": "1.0.0",
+                                    "source": "gcs_basic_trained_model",
+                                    "gcs_model_name": "basic_trained_model"
+                                }
+                                logger.info("Successfully loaded basic_trained_model from GCS")
+                                return True
+                    
+                    # If basic_trained_model not found, try latest model as fallback
+                    elif gcs_models:
                         latest_model = self.model_manager.gcs_storage.get_latest_model()
                         if latest_model:
-                            # Download latest model from GCS
-                            logger.info(f"Downloading latest model from GCS: {latest_model}")
+                            logger.info(f"basic_trained_model not found in GCS, downloading latest: {latest_model}")
                             if self.model_manager.download_model_from_gcs(latest_model):
-                                # Try to load the downloaded model
                                 local_path = self.model_manager.production_path / f"{latest_model}.joblib"
                                 if local_path.exists():
                                     self.predictor = MentalWellnessPredictor()
@@ -97,10 +116,10 @@ class ModelState:
                                         "loaded_at": datetime.now().isoformat(),
                                         "model_type": getattr(self.predictor, 'model_type', 'unknown'),
                                         "version": "1.0.0",
-                                        "source": "gcs_download",
+                                        "source": "gcs_latest_model",
                                         "gcs_model_name": latest_model
                                     }
-                                    logger.info(f"Successfully loaded model from GCS: {latest_model}")
+                                    logger.info(f"Successfully loaded latest model from GCS: {latest_model}")
                                     return True
                 except Exception as gcs_error:
                     logger.warning(f"Failed to load model from GCS: {gcs_error}")
@@ -451,40 +470,59 @@ async def train_model(
         # Update global variables for backward compatibility
         model_metadata = model_state.model_metadata
         
-        # Upload model to GCS if available
+        # Upload model to GCS with standard name "basic_trained_model"
         gcs_upload_success = False
         if model_state.model_manager and model_state.model_manager.is_gcs_available():
             try:
+                # Use consistent model name for GCS
+                model_name = "basic_trained_model"
+                
                 # Save model through model manager to get proper metadata
-                model_name = f"api_trained_model_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
                 saved_path = model_state.model_manager.save_model(
                     predictor, 
                     model_type="production",
                     model_name=model_name,
-                    description=f"API trained {request.model_type} model"
+                    description=f"API trained {request.model_type} model - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
                 )
                 
-                # Upload to GCS
+                # Upload to GCS with metadata
                 gcs_upload_success = model_state.model_manager.upload_model_to_gcs(
                     model_name, 
                     {
                         "training_request": request.dict(),
                         "performance_metrics": results,
-                        "api_version": "1.0.0"
+                        "api_version": "1.0.0",
+                        "trained_at": datetime.now().isoformat(),
+                        "model_type": request.model_type
                     }
                 )
                 
                 if gcs_upload_success:
-                    logger.info(f"Successfully uploaded model {model_name} to GCS")
+                    logger.info(f"Successfully uploaded model '{model_name}' to GCS")
                     model_state.model_metadata["gcs_uploaded"] = True
                     model_state.model_metadata["gcs_model_name"] = model_name
                     model_metadata = model_state.model_metadata
+                    
+                    # Also save locally as basic_trained_model for immediate use
+                    local_basic_path = "/app/models/basic_trained_model.joblib"
+                    try:
+                        predictor.save_model(local_basic_path)
+                        logger.info(f"Also saved model locally as: {local_basic_path}")
+                    except Exception as local_save_error:
+                        logger.warning(f"Failed to save local basic model: {local_save_error}")
                 else:
                     logger.warning("Failed to upload model to GCS")
             except Exception as gcs_error:
                 logger.error(f"Error uploading model to GCS: {gcs_error}")
         else:
             logger.info("GCS not available, model saved locally only")
+            # If GCS not available, still save as basic_trained_model locally
+            try:
+                local_basic_path = "/app/models/basic_trained_model.joblib"
+                predictor.save_model(local_basic_path)
+                logger.info(f"Saved model locally as: {local_basic_path}")
+            except Exception as local_save_error:
+                logger.warning(f"Failed to save local basic model: {local_save_error}")
         
         return {
             "message": "Model training completed successfully",
