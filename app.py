@@ -121,16 +121,13 @@ class ModelState:
                     return True
             
             # Try alternative paths with basic_trained_model as priority fallback
-            # Docker paths first, then local development paths
             possible_paths = [
                 "/app/models/api_trained_model.joblib",
-                "/app/models/trained_model.joblib", 
-                "/app/models/basic_trained_model.joblib",  # Docker basic model
                 "./models/api_trained_model.joblib",
+                "/app/models/trained_model.joblib",
                 "./models/trained_model.joblib",
-                "./models/basic_trained_model.joblib",  # Local basic model
-                "models/basic_trained_model.joblib",     # Alternative local path
-                "/app/basic_trained_model.joblib"        # Alternative Docker path
+                "/app/models/basic_trained_model.joblib",
+                "./models/basic_trained_model.joblib"
             ]
             
             for model_path in possible_paths:
@@ -291,13 +288,11 @@ def get_predictor():
     # Try to load model if not available
     if model_state.predictor is None or not getattr(model_state.predictor, 'is_trained', False):
         if not model_state.load_model_if_available():
-            # If no model could be loaded, try specifically for basic_trained_model (Docker paths first)
+            # If no model could be loaded, try specifically for basic_trained_model
             basic_model_paths = [
-                "/app/models/basic_trained_model.joblib",  # Docker primary path
-                "/app/basic_trained_model.joblib",         # Docker alternative path
-                "./models/basic_trained_model.joblib",     # Local primary path
-                "models/basic_trained_model.joblib",       # Local alternative path
-                "/models/basic_trained_model.joblib"       # Root alternative path
+                "./models/basic_trained_model.joblib",
+                "/app/models/basic_trained_model.joblib",
+                "models/basic_trained_model.joblib"
             ]
             
             for model_path in basic_model_paths:
