@@ -94,8 +94,3 @@ coverage.xml
 # IPython
 profile_default/
 ipython_config.py
-
-# But include essential files for Docker
-!models/basic_trained_model.joblib
-!credentials/
-!docker-entrypoint.sh
