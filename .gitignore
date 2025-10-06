@@ -83,6 +83,30 @@ data/processed/
 logs/
 models/trained/
 
+# Security - Credentials and secrets
+credentials/*.json
+credentials/*.key
+credentials/*.pem
+credentials/*.p12
+credentials/*.pfx
+!credentials/README.md
+*.key
+*.pem
+*.p12
+*.pfx
+.env.local
+.env.production
+.env.staging
+.env.development
+*_key.json
+*-key.json
+service-account*.json
+gcp-credentials*.json
+# Allow certain JSON files
+!requirements.txt
+!package.json
+!tsconfig.json
+
 # Jupyter Notebook
 .ipynb_checkpoints
 
