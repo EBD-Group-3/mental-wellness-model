@@ -1,6 +1,10 @@
 # 🗃️ GCS Data Integration Guide
 
-This guide explains how to use Google Cloud Storage (GCS) for training data in the Mental Wellness Model API.
+This g### Supported formats in the `RawData` folder:
+- **CSV files** (`.csv`) - Standard comma-separated values (always supported)
+- **Parquet files** (`.parquet`) - Optimized columnar format (requires pyarrow)
+
+**Note**: After the latest update, pyarrow is included in requirements.txt and will be available after deployment. You can check availability using the `/system/dependencies` endpoint.e explains how to use Google Cloud Storage (GCS) for training data in the Mental Wellness Model API.
 
 ## 🎯 Overview
 
@@ -241,11 +245,18 @@ This script will:
 - Check data types match expected formats
 - Remove any null values in required columns
 
+**5. "Missing optional dependency 'pyarrow'"**
+- This indicates Parquet support is not available
+- **Solution**: pyarrow has been added to requirements.txt and will be installed on next deployment
+- **Workaround**: Convert your Parquet file to CSV format and use that instead
+- **Check status**: Use `/system/dependencies` endpoint to verify pyarrow installation
+
 ### Debug Steps:
 1. Test health endpoint: `GET /health`
-2. List data files: `GET /gcs/data`
-3. Preview data: `GET /gcs/data/preview`
-4. Check logs in Render dashboard for detailed error messages
+2. Check dependencies: `GET /system/dependencies`
+3. List data files: `GET /gcs/data`
+4. Preview data: `GET /gcs/data/preview`
+5. Check logs in Render dashboard for detailed error messages
 
 ## 🚀 Benefits
 

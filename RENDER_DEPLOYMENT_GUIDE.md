@@ -180,12 +180,19 @@ Monitor GCS usage in Google Cloud Console:
 - Render handles port assignment automatically
 - Don't hardcode port 8000 in production
 
+**"Missing optional dependency 'pyarrow'"**
+- This has been fixed by adding pyarrow to requirements.txt
+- Render will install pyarrow on next deployment
+- Alternatively, use CSV format instead of Parquet
+- Check `/system/dependencies` endpoint to verify installation
+
 ### Getting Help
 
 1. Check Render build logs
 2. Review application logs in Render dashboard
 3. Test GCS connection locally with same environment variables
 4. Verify service account permissions in GCP Console
+5. Use `/system/dependencies` endpoint to check library availability
 
 ## 🎉 Success!
 

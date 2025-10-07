@@ -954,6 +954,46 @@ async def preview_gcs_data(
         raise HTTPException(status_code=400, detail=f"Error previewing GCS data: {str(e)}")
 
 
+@app.get("/system/dependencies")
+async def check_dependencies():
+    """Check system dependencies and capabilities."""
+    dependencies = {
+        "pandas": True,
+        "numpy": True,
+        "scikit-learn": True,
+        "fastapi": True,
+        "google-cloud-storage": True,
+        "pyarrow": False,
+        "fastparquet": False
+    }
+    
+    try:
+        import pyarrow
+        dependencies["pyarrow"] = True
+        dependencies["pyarrow_version"] = pyarrow.__version__
+    except ImportError:
+        pass
+    
+    try:
+        import fastparquet
+        dependencies["fastparquet"] = True
+        dependencies["fastparquet_version"] = fastparquet.__version__
+    except ImportError:
+        pass
+    
+    parquet_support = dependencies["pyarrow"] or dependencies["fastparquet"]
+    
+    return {
+        "dependencies": dependencies,
+        "parquet_support": parquet_support,
+        "supported_formats": ["csv"] + (["parquet"] if parquet_support else []),
+        "recommendations": {
+            "for_parquet": "Use CSV format" if not parquet_support else "Parquet supported",
+            "note": "If you need Parquet support, pyarrow will be installed on next deployment"
+        }
+    }
+
+
 # Error handlers
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
