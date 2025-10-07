@@ -225,7 +225,7 @@ class HealthResponse(BaseModel):
     status: str = Field(..., description="Service status")
     timestamp: datetime = Field(..., description="Current timestamp")
     model_loaded: bool = Field(..., description="Whether model is loaded")
-    model_info: Optional[Dict[str, str]] = Field(None, description="Model metadata")
+    model_info: Optional[Dict[str, Union[str, bool, List[str]]]] = Field(None, description="Model metadata")
 
 
 # Application lifecycle management
@@ -379,11 +379,23 @@ async def health_check():
     is_model_loaded = (model_state.predictor is not None and 
                       getattr(model_state.predictor, 'is_trained', False))
     
+    # Prepare model info for serialization
+    model_info = None
+    if model_state.model_metadata:
+        model_info = {}
+        for key, value in model_state.model_metadata.items():
+            if isinstance(value, (str, bool)):
+                model_info[key] = value
+            elif isinstance(value, list):
+                model_info[key] = value  # Keep lists as they are now supported
+            else:
+                model_info[key] = str(value)  # Convert other types to string
+    
     return HealthResponse(
         status="healthy",
         timestamp=datetime.now(),
         model_loaded=is_model_loaded,
-        model_info=model_state.model_metadata if model_state.model_metadata else None
+        model_info=model_info
     )
 
 

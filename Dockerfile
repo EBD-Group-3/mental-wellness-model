@@ -40,12 +40,12 @@ RUN useradd --create-home --shell /bin/bash appuser && \
     chown -R appuser:appuser /app
 USER appuser
 
-# Expose the port for FastAPI
+# Expose the port for FastAPI (Render will override with PORT env var)
 EXPOSE 8000
 
-# Health check
+# Health check - use PORT environment variable if available
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
 
 # Default command runs FastAPI with Gunicorn
 CMD ["gunicorn", "--config", "gunicorn.conf.py", "app:app"]

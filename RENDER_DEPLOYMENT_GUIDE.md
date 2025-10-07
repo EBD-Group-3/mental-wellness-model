@@ -92,14 +92,21 @@ In the Render dashboard:
 - Check that the service account has Storage permissions
 - Ensure the GCS bucket exists and is accessible
 
-#### Issue: Port Binding Error
-**Solution:** Render automatically sets the `PORT` environment variable. Make sure your `gunicorn.conf.py` uses it:
+#### Issue: 502 Bad Gateway / Port Binding Error
+**Problem:** Render automatically sets the `PORT` environment variable, but the app was hardcoded to port 8000.
+**Solution:** The `gunicorn.conf.py` has been updated to use the dynamic PORT:
 
 ```python
 # In gunicorn.conf.py
 import os
-bind = f"0.0.0.0:{os.environ.get('PORT', 8000)}"
+port = os.getenv('PORT', '8000')
+bind = f"0.0.0.0:{port}"
 ```
+
+**Additional fixes made:**
+- Reduced worker count for cloud deployment to avoid memory issues
+- Fixed health endpoint validation errors
+- Updated Dockerfile to use environment variables properly
 
 ## 🔧 Configuration Files Updated
 

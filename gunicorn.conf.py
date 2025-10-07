@@ -4,12 +4,19 @@
 import multiprocessing
 import os
 
-# Server socket
-bind = "0.0.0.0:8000"
+# Server socket - Use PORT environment variable for cloud deployments (Render, Heroku, etc.)
+port = os.getenv('PORT', '8000')
+bind = f"0.0.0.0:{port}"
 backlog = 2048
 
-# Worker processes
-workers = multiprocessing.cpu_count() * 2 + 1
+# Worker processes - Optimize for cloud deployment (Render has limited resources)
+# Use fewer workers for cloud environments to avoid memory issues
+cpu_count = multiprocessing.cpu_count()
+if os.getenv('RENDER') or os.getenv('ENVIRONMENT') == 'production':
+    workers = min(cpu_count + 1, 4)  # Cap at 4 workers for cloud deployment
+else:
+    workers = cpu_count * 2 + 1  # Full resources for local development
+
 worker_class = "uvicorn.workers.UvicornWorker"
 worker_connections = 1000
 max_requests = 1000
@@ -58,7 +65,8 @@ reload = os.getenv('GUNICORN_RELOAD', 'false').lower() == 'true'
 
 def when_ready(server):
     """Called just after the server is started."""
-    server.log.info("Mental Wellness API server is ready. Listening on: %s", server.address)
+    port_info = f"PORT={os.getenv('PORT', '8000')}" if os.getenv('PORT') else "using default port 8000"
+    server.log.info("Mental Wellness API server is ready. Listening on: %s (%s)", server.address, port_info)
 
 def worker_int(worker):
     """Called just after a worker has been killed."""
