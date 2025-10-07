@@ -29,14 +29,11 @@ COPY . .
 # Install the package in development mode
 RUN pip install -e .
 
-# Create directories for data, models, and credentials
-RUN mkdir -p /app/data /app/models /app/output /app/credentials
+# Create directories for data, models, and output
+RUN mkdir -p /app/data /app/models /app/output
 
-# Copy GCS credentials
-COPY credentials/ /app/credentials/
-
-# Set environment variable for GCS credentials
-ENV GOOGLE_APPLICATION_CREDENTIALS="/app/credentials/mentalwellness-473814-key.json"
+# Set environment for production deployment (credentials will be set via environment variables)
+ENV ENVIRONMENT=production
 
 # Create a non-root user for security
 RUN useradd --create-home --shell /bin/bash appuser && \

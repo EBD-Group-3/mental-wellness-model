@@ -39,3 +39,21 @@ risk_thresholds:
 logging:
   level: "INFO"
   format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+
+# Cloud Deployment Configuration
+cloud:
+  # GCS Configuration for Render deployment
+  gcs:
+    bucket_name: "mental_wellness_data_lake"
+    # Credentials loaded from environment variables:
+    # Required environment variables for Render:
+    # - GOOGLE_CREDENTIALS_JSON (preferred) or individual fields:
+    # - GCS_PROJECT_ID
+    # - GCS_PRIVATE_KEY  
+    # - GCS_CLIENT_EMAIL
+    # - GCS_PRIVATE_KEY_ID
+  
+  # Render-specific settings
+  render:
+    environment: "production"
+    # Port will be set by Render automatically via PORT environment variable

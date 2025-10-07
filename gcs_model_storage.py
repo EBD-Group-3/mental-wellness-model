@@ -35,11 +35,12 @@ class GCSModelStorage:
         Args:
             bucket_name: Name of the GCS bucket
             model_folder: Folder name in the bucket for models
-            credentials_path: Path to service account credentials JSON file
+            credentials_path: Path to service account credentials JSON file (deprecated, use environment variables)
         """
         self.bucket_name = bucket_name
         self.model_folder = model_folder
-        self.credentials_path = credentials_path or "/app/credentials/mentalwellness-473814-key.json"
+        # Credentials path is deprecated - now using environment variables via secure_credential_manager
+        self.credentials_path = credentials_path
         
         # Initialize GCS client
         self.client = None

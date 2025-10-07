@@ -92,12 +92,22 @@ class SecureGCSCredentials:
     @classmethod
     def get_credentials(cls):
         """Get credentials using the first available method."""
-        methods = [
-            ("Environment JSON", cls.load_from_env_json),
-            ("Environment Fields", cls.load_from_env_fields),
-            ("Local File", cls.load_from_file),
-            ("Default", cls.load_default)
-        ]
+        # For production/cloud environments, prioritize environment variables
+        if os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RENDER'):
+            methods = [
+                ("Environment JSON", cls.load_from_env_json),
+                ("Environment Fields", cls.load_from_env_fields),
+                ("Default", cls.load_default),
+                ("Local File", cls.load_from_file)
+            ]
+        else:
+            # For development, try file first
+            methods = [
+                ("Environment JSON", cls.load_from_env_json),
+                ("Environment Fields", cls.load_from_env_fields),
+                ("Local File", cls.load_from_file),
+                ("Default", cls.load_default)
+            ]
         
         for method_name, method in methods:
             try:
@@ -134,17 +144,26 @@ def print_env_setup_instructions():
     print("""
 🔧 Environment Variable Setup Instructions:
 
-For Production Deployment:
-==========================
+For Render Deployment (Recommended):
+===================================
 
-Option 1: JSON in single environment variable
-export GOOGLE_CREDENTIALS_JSON='{"type": "service_account", "project_id": "mentalwellness-473814", ...}'
+In your Render service dashboard, set these environment variables:
+
+Option 1: JSON in single environment variable (Preferred)
+GOOGLE_CREDENTIALS_JSON={"type": "service_account", "project_id": "mentalwellness-473814", ...}
 
 Option 2: Individual fields
-export GCS_PROJECT_ID="mentalwellness-473814"
-export GCS_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n"
-export GCS_CLIENT_EMAIL="google-cloud-storage-writer@mentalwellness-473814.iam.gserviceaccount.com"
-export GCS_PRIVATE_KEY_ID="526ba6a9c8b5a0a2f50c27eb0920fc700ac85531"
+GCS_PROJECT_ID=mentalwellness-473814
+GCS_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n
+GCS_CLIENT_EMAIL=your-service-account@mentalwellness-473814.iam.gserviceaccount.com
+GCS_PRIVATE_KEY_ID=your-private-key-id
+
+Additional variables:
+ENVIRONMENT=production
+
+For Local Development:
+=====================
+export GOOGLE_CREDENTIALS_JSON='{"type": "service_account", "project_id": "mentalwellness-473814", ...}'
 
 For Docker:
 ===========
@@ -157,6 +176,8 @@ kubectl create secret generic gcs-credentials --from-literal=GOOGLE_CREDENTIALS_
 For Cloud Run/GKE:
 ==================
 Uses default service account - no manual setup needed
+
+📖 See RENDER_DEPLOYMENT_GUIDE.md for complete deployment instructions.
     """)
 
 
