@@ -99,9 +99,39 @@ class MentalWellnessPredictor:
             
             y = df[target_col]
             
+            # Convert continuous risk values to binary classes using threshold
+            risk_threshold = 0.5  # Above 0.5 = high risk (1), below = low risk (0)
+            if y.dtype in ['float64', 'float32'] and y.min() >= 0 and y.max() <= 1:
+                y_binary = (y > risk_threshold).astype(int)
+                self.logger.info(f"Converted continuous {condition} risk to binary: {sum(y_binary)}/{len(y_binary)} high risk samples")
+            else:
+                y_binary = y.astype(int)  # Assume already binary
+            
+            # Check if we have both classes and enough samples for test split
+            unique_classes = np.unique(y_binary)
+            n_samples = len(y_binary)
+            min_test_samples = max(1, int(n_samples * test_size))
+            
+            if len(unique_classes) < 2:
+                self.logger.warning(f"Only one class found for {condition}: {unique_classes}. Skipping stratified split.")
+                stratify_param = None
+            elif min_test_samples < len(unique_classes):
+                self.logger.warning(f"Not enough samples for stratified split (need {len(unique_classes)}, got {min_test_samples}). Using random split.")
+                stratify_param = None
+            else:
+                stratify_param = y_binary
+            
+            # Adjust test_size for very small datasets
+            if n_samples <= 10:
+                adjusted_test_size = max(1, n_samples // 3)  # At least 1, but not more than 1/3
+                test_size_ratio = adjusted_test_size / n_samples
+                self.logger.info(f"Small dataset detected ({n_samples} samples). Adjusting test_size to {adjusted_test_size} samples ({test_size_ratio:.2f})")
+            else:
+                test_size_ratio = test_size
+            
             # Split data
             X_train, X_test, y_train, y_test = train_test_split(
-                X, y, test_size=test_size, random_state=42, stratify=y
+                X, y_binary, test_size=test_size_ratio, random_state=42, stratify=stratify_param
             )
             
             # Train model
@@ -112,15 +142,45 @@ class MentalWellnessPredictor:
             train_score = self.models[condition].score(X_train, y_train)
             test_score = self.models[condition].score(X_test, y_test)
             
-            # Cross-validation
-            cv_scores = cross_val_score(self.models[condition], X_train, y_train, cv=5)
+            # Adaptive cross-validation - handle small datasets
+            try:
+                # Determine optimal CV folds based on data size and class distribution
+                n_samples = len(X_train)
+                n_classes = len(np.unique(y_train))
+                min_class_count = min([sum(y_train == cls) for cls in np.unique(y_train)])
+                
+                # Choose CV folds: min of 5, data_size//10, or min_class_count
+                cv_folds = min(5, max(2, n_samples // 10), min_class_count)
+                
+                if cv_folds < 2:
+                    # Too few samples for CV, skip it
+                    cv_scores = np.array([test_score])  # Use test score as proxy
+                    self.logger.warning(f"Skipping cross-validation for {condition}: insufficient data (min_class_count={min_class_count})")
+                else:
+                    cv_scores = cross_val_score(self.models[condition], X_train, y_train, cv=cv_folds)
+            except Exception as e:
+                # Fallback: use test score if CV fails
+                cv_scores = np.array([test_score])
+                self.logger.warning(f"Cross-validation failed for {condition}: {e}. Using test score as fallback.")
             
             # Predictions for detailed metrics
             y_pred = self.models[condition].predict(X_test)
-            y_pred_proba = self.models[condition].predict_proba(X_test)[:, 1]
             
-            # Calculate metrics
-            auc_score = roc_auc_score(y_test, y_pred_proba)
+            # Handle probability prediction for single class case
+            y_pred_proba_full = self.models[condition].predict_proba(X_test)
+            if y_pred_proba_full.shape[1] == 1:
+                # Only one class - use that probability
+                y_pred_proba = y_pred_proba_full[:, 0]
+                auc_score = None  # Can't calculate AUC with only one class
+                self.logger.warning(f"Only one class in test set for {condition}. AUC calculation skipped.")
+            else:
+                # Normal case - use positive class probability
+                y_pred_proba = y_pred_proba_full[:, 1]
+                try:
+                    auc_score = roc_auc_score(y_test, y_pred_proba)
+                except ValueError as e:
+                    auc_score = None
+                    self.logger.warning(f"AUC calculation failed for {condition}: {e}")
             
             results[condition] = {
                 'train_accuracy': train_score,
@@ -151,8 +211,22 @@ class MentalWellnessPredictor:
             train_score_onset = self.models['onset_day'].score(X_train, y_train_onset)
             test_score_onset = self.models['onset_day'].score(X_test, y_test_onset)
             
-            # Cross-validation for regression
-            cv_scores_onset = cross_val_score(self.models['onset_day'], X_train, y_train_onset, cv=5)
+            # Adaptive cross-validation for regression
+            try:
+                # Determine optimal CV folds for regression
+                n_samples = len(X_train)
+                cv_folds = min(5, max(2, n_samples // 10))
+                
+                if cv_folds < 2:
+                    # Too few samples for CV, skip it
+                    cv_scores_onset = np.array([test_score_onset])
+                    self.logger.warning(f"Skipping cross-validation for onset_day: insufficient data (n_samples={n_samples})")
+                else:
+                    cv_scores_onset = cross_val_score(self.models['onset_day'], X_train, y_train_onset, cv=cv_folds)
+            except Exception as e:
+                # Fallback: use test score if CV fails
+                cv_scores_onset = np.array([test_score_onset])
+                self.logger.warning(f"Cross-validation failed for onset_day: {e}. Using test score as fallback.")
             
             # Predictions for detailed metrics
             y_pred_onset = self.models['onset_day'].predict(X_test)
