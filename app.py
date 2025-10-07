@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, validator, model_validator
 from typing import Optional
 import pandas as pd
 import joblib
@@ -227,6 +227,23 @@ class TrainingRequest(BaseModel):
         if not v.lower().endswith(('.csv', '.parquet')):
             raise ValueError('gcs_data_filename must end with .csv or .parquet')
         return v
+    
+    @model_validator(mode='after')
+    def validate_data_sources(self):
+        """Validate that data source configuration is consistent."""
+        use_sample_data = self.use_sample_data
+        use_gcs_data = self.use_gcs_data
+        data_file = self.data_file
+        
+        # If not using sample data and not using GCS data, then data_file is required
+        if not use_sample_data and not use_gcs_data and not data_file:
+            raise ValueError('data_file must be specified when use_sample_data=false and use_gcs_data=false')
+        
+        # If using GCS data, sample data should be false
+        if use_gcs_data and use_sample_data:
+            raise ValueError('use_sample_data must be false when use_gcs_data=true')
+            
+        return self
 
 
 class HealthResponse(BaseModel):
@@ -425,6 +442,9 @@ async def train_model(
         predictor = model_state.get_or_create_predictor(request.model_type)
         data_processor = model_state.data_processor
         feature_engineer = model_state.feature_engineer
+        
+        # Debug logging
+        logger.info(f"Training request parameters: use_sample_data={request.use_sample_data}, use_gcs_data={request.use_gcs_data}, data_file={request.data_file}")
         
         # Load or generate data
         if request.use_sample_data:
