@@ -1,0 +1,5 @@
+age,sleep_hours,exercise_minutes,work_stress_level,mood_rating,energy_level,avg_heart_rate,resting_heart_rate,depression_risk,anxiety_risk
+50,7.8,100,8,3,18.76,149,73.1,0.52,0.64
+46,7.5,102,7,6,16.51,109,68.6,0.41,0.55
+51,7.5,90,5,2,0.7,125,78.4,0.62,0.54
+38,6.1,119,2,10,4.28,146,64.1,0.35,0.4

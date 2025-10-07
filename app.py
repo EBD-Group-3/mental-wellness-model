@@ -502,7 +502,23 @@ async def train_model(
         # Process data
         df = data_processor.clean_data(df)
         if not data_processor.validate_data(df):
-            raise HTTPException(status_code=400, detail="Data validation failed")
+            # Provide more detailed validation error
+            required_columns = ['age', 'sleep_hours', 'exercise_minutes', 'work_stress_level', 'mood_rating', 'energy_level', 'avg_heart_rate', 'resting_heart_rate']
+            target_columns = ['depression_risk', 'anxiety_risk']
+            
+            missing_features = set(required_columns) - set(df.columns)
+            missing_targets = set(target_columns) - set(df.columns)
+            
+            error_details = []
+            if missing_features:
+                error_details.append(f"Missing required feature columns: {list(missing_features)}")
+            if missing_targets:
+                error_details.append(f"Missing required target columns: {list(missing_targets)}")
+            if not missing_features and not missing_targets:
+                error_details.append("Data values are outside valid ranges. Check value constraints.")
+            
+            detailed_error = "Data validation failed. " + " ".join(error_details)
+            raise HTTPException(status_code=400, detail=detailed_error)
         
         # Feature engineering
         df = feature_engineer.create_features(df)

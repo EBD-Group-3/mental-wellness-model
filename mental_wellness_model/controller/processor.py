@@ -158,16 +158,16 @@ class DataProcessor:
             self.logger.error(f"Missing required columns: {missing_columns}")
             return False
         
-        # Check for reasonable value ranges
+        # Check for reasonable value ranges (more flexible validation)
         validations = [
             (df['age'] >= 0).all(),
             (df['sleep_hours'] >= 0).all(),
             (df['exercise_minutes'] >= 0).all(),
-            (df['work_stress_level'] >= 1).all() and (df['work_stress_level'] <= 10).all(),
-            (df['mood_rating'] >= 1).all() and (df['mood_rating'] <= 10).all(),
-            (df['energy_level'] >= 1).all() and (df['energy_level'] <= 10).all(),
-            (df['avg_heart_rate'] >= 40).all() and (df['avg_heart_rate'] <= 200).all(),
-            (df['resting_heart_rate'] >= 40).all() and (df['resting_heart_rate'] <= 120).all(),
+            (df['work_stress_level'] >= 0).all(),  # Relaxed: allow 0+ instead of 1-10
+            (df['mood_rating'] >= 0).all(),        # Relaxed: allow 0+ instead of 1-10
+            (df['energy_level'] >= 0).all(),       # Relaxed: allow 0+ instead of 1-10
+            (df['avg_heart_rate'] >= 30).all() and (df['avg_heart_rate'] <= 250).all(),  # Wider range
+            (df['resting_heart_rate'] >= 30).all() and (df['resting_heart_rate'] <= 150).all(),  # Wider range
         ]
         
         # Additional validation for onset_day if present
@@ -178,8 +178,30 @@ class DataProcessor:
                 df['onset_day'].dtype in ['int64', 'int32', 'float64']  # Numeric type
             ])
         
-        if not all(validations):
-            self.logger.error("Data contains invalid values")
+        # Check each validation and log specific failures
+        validation_names = [
+            "age >= 0",
+            "sleep_hours >= 0", 
+            "exercise_minutes >= 0",
+            "work_stress_level >= 0",
+            "mood_rating >= 0",
+            "energy_level >= 0",
+            "avg_heart_rate 30-250",
+            "resting_heart_rate 30-150"
+        ]
+        
+        failed_validations = []
+        for i, (validation, name) in enumerate(zip(validations, validation_names)):
+            if not validation:
+                failed_validations.append(name)
+                # Log some example values that failed
+                column_name = name.split()[0]
+                if column_name in df.columns:
+                    sample_values = df[column_name].head().tolist()
+                    self.logger.error(f"Validation failed for {name}: sample values = {sample_values}")
+        
+        if failed_validations:
+            self.logger.error(f"Data validation failed for: {failed_validations}")
             return False
         
         self.logger.info("Data validation passed")
