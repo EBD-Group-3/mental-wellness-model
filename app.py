@@ -1019,5 +1019,5 @@ if __name__ == "__main__":
             log_level="info"
         )
     except ImportError:
-        print("uvicorn not installed. Install with: pip install uvicorn")
+        print("uvicorn not available for direct server startup")
         print("Or run with: gunicorn app:app -c gunicorn.conf.py")

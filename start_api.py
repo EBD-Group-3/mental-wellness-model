@@ -22,8 +22,7 @@ def check_requirements():
     
     if missing_packages:
         print(f"Missing required packages: {', '.join(missing_packages)}")
-        print("Please install them using:")
-        print(f"pip install {' '.join(missing_packages)}")
+        print("Please ensure all required packages are available.")
         return False
     return True
 

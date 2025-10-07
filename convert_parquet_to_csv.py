@@ -27,8 +27,8 @@ def convert_parquet_to_csv(parquet_file: str, csv_file: str = None):
             df = pd.read_parquet(parquet_file)
             print(f"✅ Loaded Parquet file: {len(df)} rows, {len(df.columns)} columns")
         except ImportError as e:
-            print(f"❌ Error: Missing Parquet support. Please install pyarrow:")
-            print(f"   pip install pyarrow")
+            print(f"❌ Error: Missing Parquet support.")
+            print(f"   pyarrow is required for Parquet file reading.")
             print(f"   Error details: {e}")
             return False
         except Exception as e:

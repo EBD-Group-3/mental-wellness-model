@@ -375,8 +375,8 @@ class GCSModelStorage:
                 except ImportError as import_error:
                     error_msg = (
                         f"Parquet support not available: {str(import_error)}. "
-                        f"Please ensure pyarrow is installed, or convert your data to CSV format. "
-                        f"You can upload a CSV version of your data instead."
+                        f"pyarrow dependency is required for Parquet files. "
+                        f"Please convert your data to CSV format and upload that instead."
                     )
                     logger.error(error_msg)
                     raise Exception(error_msg)
