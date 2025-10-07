@@ -212,11 +212,20 @@ class TrainingRequest(BaseModel):
     use_sample_data: bool = Field(default=True, description="Use synthetic sample data")
     sample_size: int = Field(default=1000, ge=100, le=10000, description="Size of sample data")
     data_file: Optional[str] = Field(default=None, description="Path to custom CSV data file (relative to /app/data/)")
+    use_gcs_data: bool = Field(default=False, description="Load data from GCS bucket")
+    gcs_data_folder: str = Field(default="RawData", description="GCS folder containing the data file")
+    gcs_data_filename: str = Field(default="wellness_sample.parquet", description="GCS data filename (supports .csv, .parquet)")
 
     @validator('model_type')
     def validate_model_type(cls, v):
         if v not in ['random_forest', 'logistic_regression']:
             raise ValueError('model_type must be either "random_forest" or "logistic_regression"')
+        return v
+    
+    @validator('gcs_data_filename')
+    def validate_gcs_data_filename(cls, v):
+        if not v.lower().endswith(('.csv', '.parquet')):
+            raise ValueError('gcs_data_filename must end with .csv or .parquet')
         return v
 
 
@@ -421,12 +430,32 @@ async def train_model(
         if request.use_sample_data:
             df = data_processor._generate_sample_data(request.sample_size)
             logger.info(f"Generated {len(df)} samples of synthetic data")
+        elif request.use_gcs_data:
+            # Load data from GCS bucket
+            if not model_state.model_manager or not model_state.model_manager.is_gcs_available():
+                raise HTTPException(
+                    status_code=503,
+                    detail="GCS storage not available. Please check your credentials and bucket configuration."
+                )
+            
+            try:
+                gcs_storage = model_state.model_manager.gcs_storage
+                df = gcs_storage.load_data_from_gcs(
+                    data_folder=request.gcs_data_folder,
+                    filename=request.gcs_data_filename
+                )
+                logger.info(f"Loaded {len(df)} samples from GCS: {request.gcs_data_folder}/{request.gcs_data_filename}")
+            except Exception as e:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Error loading data from GCS: {str(e)}"
+                )
         else:
-            # Load custom data from CSV file
+            # Load custom data from local CSV file
             if not request.data_file:
                 raise HTTPException(
                     status_code=400,
-                    detail="data_file must be specified when use_sample_data=false"
+                    detail="data_file must be specified when use_sample_data=false and use_gcs_data=false"
                 )
             
             # Handle both absolute paths and relative filenames
@@ -827,6 +856,82 @@ async def list_gcs_models():
     except Exception as e:
         logger.error(f"Error listing GCS models: {e}")
         raise HTTPException(status_code=500, detail=f"Error listing GCS models: {str(e)}")
+
+
+@app.get("/gcs/data")
+async def list_gcs_data_files():
+    """List available data files in GCS RawData folder."""
+    if not model_state.model_manager or not model_state.model_manager.is_gcs_available():
+        raise HTTPException(
+            status_code=503,
+            detail="GCS storage not available. Please check your credentials and bucket configuration."
+        )
+    
+    try:
+        gcs_storage = model_state.model_manager.gcs_storage
+        client = gcs_storage.client
+        bucket = gcs_storage.bucket
+        
+        # List files in RawData folder
+        data_files = []
+        blobs = client.list_blobs(bucket, prefix="RawData/")
+        
+        for blob in blobs:
+            if not blob.name.endswith('/'):  # Skip folder markers
+                file_info = {
+                    "name": blob.name.split('/')[-1],
+                    "full_path": blob.name,
+                    "size_bytes": blob.size,
+                    "updated": blob.updated.isoformat() if blob.updated else None,
+                    "content_type": blob.content_type
+                }
+                data_files.append(file_info)
+        
+        return {
+            "gcs_data_files": data_files,
+            "bucket": "mental_wellness_data_lake",
+            "folder": "RawData",
+            "total_files": len(data_files)
+        }
+    except Exception as e:
+        logger.error(f"Error listing GCS data files: {e}")
+        raise HTTPException(status_code=500, detail=f"Error listing GCS data files: {str(e)}")
+
+
+@app.get("/gcs/data/preview")
+async def preview_gcs_data(
+    filename: str = "wellness_sample.parquet",
+    folder: str = "RawData",
+    rows: int = 5
+):
+    """Preview data from GCS file."""
+    if not model_state.model_manager or not model_state.model_manager.is_gcs_available():
+        raise HTTPException(
+            status_code=503,
+            detail="GCS storage not available. Please check your credentials and bucket configuration."
+        )
+    
+    try:
+        gcs_storage = model_state.model_manager.gcs_storage
+        df = gcs_storage.load_data_from_gcs(data_folder=folder, filename=filename)
+        
+        # Get basic info about the dataset
+        preview_data = {
+            "filename": filename,
+            "folder": folder,
+            "total_rows": len(df),
+            "total_columns": len(df.columns),
+            "columns": df.columns.tolist(),
+            "data_types": df.dtypes.astype(str).to_dict(),
+            "preview_rows": df.head(rows).to_dict('records'),
+            "sample_statistics": df.describe().to_dict() if len(df) > 0 else {}
+        }
+        
+        return preview_data
+        
+    except Exception as e:
+        logger.error(f"Error previewing GCS data: {e}")
+        raise HTTPException(status_code=400, detail=f"Error previewing GCS data: {str(e)}")
 
 
 # Error handlers

@@ -193,13 +193,49 @@ Once deployed successfully, your Mental Wellness Model API will be:
 - ✅ Running on Render's infrastructure
 - ✅ Using secure environment variable authentication
 - ✅ Storing models persistently in Google Cloud Storage
+- ✅ Loading training data directly from GCS bucket
+- ✅ Supporting both CSV and Parquet data formats
 - ✅ Automatically handling scaling and health checks
+
+## 🗃️ GCS Data Integration
+
+Your deployment now supports loading training data from Google Cloud Storage:
+
+### GCS Bucket Structure:
+```
+mental_wellness_data_lake/
+├── Model/                    # Trained models
+└── RawData/                  # Training data
+    └── wellness_sample.parquet
+```
+
+### New Endpoints:
+- **List Data Files**: `GET /gcs/data`
+- **Preview Data**: `GET /gcs/data/preview?filename=wellness_sample.parquet`
+- **Train with GCS Data**: `POST /train` with `"use_gcs_data": true`
+
+### Usage Example:
+```bash
+curl -X POST "https://mental-wellness-model.onrender.com/train" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model_type": "random_forest",
+    "use_sample_data": false,
+    "use_gcs_data": true,
+    "gcs_data_folder": "RawData",
+    "gcs_data_filename": "wellness_sample.parquet"
+  }'
+```
+
+📖 **For detailed GCS data integration guide, see:** [GCS_DATA_INTEGRATION.md](GCS_DATA_INTEGRATION.md)
 
 Your API endpoints will be available at:
 - `https://your-app-name.onrender.com/health` - Health check
 - `https://your-app-name.onrender.com/docs` - API documentation
 - `https://your-app-name.onrender.com/train` - Model training
 - `https://your-app-name.onrender.com/predict` - Predictions
+- `https://your-app-name.onrender.com/gcs/data` - List GCS data files
+- `https://your-app-name.onrender.com/gcs/data/preview` - Preview GCS data
 
 ## 🔄 Updates and Maintenance
 

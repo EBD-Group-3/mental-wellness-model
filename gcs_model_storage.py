@@ -14,6 +14,7 @@ from google.auth import default
 from google.oauth2 import service_account
 import joblib
 import tempfile
+import pandas as pd
 from secure_credential_manager import create_secure_gcs_client
 
 
@@ -296,3 +297,86 @@ class GCSModelStorage:
             return True
         
         return self.upload_model(local_model_path, model_name, metadata)
+    
+    def download_data_file(self, data_folder: str, filename: str, local_path: str) -> bool:
+        """
+        Download a data file from GCS.
+        
+        Args:
+            data_folder: Folder in GCS bucket containing the data file
+            filename: Name of the data file to download
+            local_path: Local path where to save the downloaded file
+            
+        Returns:
+            True if download successful, False otherwise
+        """
+        if not self.is_available():
+            logger.error("GCS not available for data download")
+            return False
+        
+        try:
+            # Construct blob path
+            blob_path = f"{data_folder}/{filename}"
+            blob = self.bucket.blob(blob_path)
+            
+            if not blob.exists():
+                logger.error(f"Data file not found in GCS: {blob_path}")
+                return False
+            
+            # Create local directory if it doesn't exist
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            
+            # Download the file
+            blob.download_to_filename(local_path)
+            logger.info(f"✅ Downloaded data file from GCS: {blob_path} → {local_path}")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to download data file from GCS: {e}")
+            return False
+    
+    def load_data_from_gcs(self, data_folder: str, filename: str) -> pd.DataFrame:
+        """
+        Load data directly from GCS into a pandas DataFrame.
+        
+        Args:
+            data_folder: Folder in GCS bucket containing the data file
+            filename: Name of the data file (supports .csv, .parquet)
+            
+        Returns:
+            DataFrame with the loaded data
+            
+        Raises:
+            Exception if file cannot be loaded
+        """
+        if not self.is_available():
+            raise Exception("GCS not available for data loading")
+        
+        try:
+            # Construct blob path
+            blob_path = f"{data_folder}/{filename}"
+            blob = self.bucket.blob(blob_path)
+            
+            if not blob.exists():
+                raise Exception(f"Data file not found in GCS: {blob_path}")
+            
+            # Download data to memory
+            data_bytes = blob.download_as_bytes()
+            
+            # Load based on file extension
+            if filename.lower().endswith('.csv'):
+                from io import StringIO
+                data_str = data_bytes.decode('utf-8')
+                df = pd.read_csv(StringIO(data_str))
+            elif filename.lower().endswith('.parquet'):
+                from io import BytesIO
+                df = pd.read_parquet(BytesIO(data_bytes))
+            else:
+                raise Exception(f"Unsupported file format: {filename}. Supported formats: .csv, .parquet")
+            
+            logger.info(f"✅ Loaded {len(df)} rows from GCS: {blob_path}")
+            return df
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to load data from GCS: {e}")
+            raise
